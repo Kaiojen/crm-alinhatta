@@ -4,7 +4,9 @@
   "description": "CRM Alinhatta - Sistema de Gestão de Leads",
   "main": "index.html",
   "scripts": {
-    "dev": "python server.py"
+    "dev": "python server.py",
+    "build": "echo 'No build step required'",
+    "start": "echo 'Static site - no start command needed'"
   },
   "dependencies": {
     "@vercel/kv": "^0.2.0"
