@@ -245,3 +245,6 @@ Para dúvidas ou problemas, verifique:
 
 **Desenvolvido para Alinhatta** 🚀
 
+---
+*Última atualização: Deploy Vercel*
+
