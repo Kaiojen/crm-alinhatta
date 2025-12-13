@@ -1,117 +1,203 @@
-🎯 CRM Alinhatta - Sistema de Gestão de Leads
-✅ O QUE FOI ENTREGUE
-🎨 Design System Alinhatta
-✅ Cores da marca aplicadas em todo o sistema
-✅ Fontes Montserrat (títulos) e Open Sans (corpo)
-✅ Logo da Alinhatta no header
-✅ Identidade visual consistente
-📊 Funcionalidades Implementadas
-✅ Pipeline de Leads completo
-✅ Dashboard com métricas em tempo real
-✅ Sistema de alertas (follow-ups atrasados)
-✅ Filtros avançados (Status, Prioridade, Busca)
-✅ Adicionar/Editar leads
-✅ Histórico de interações
-✅ Importação de CSV melhorada e robusta
-🔄 Importador de CSV Aprimorado
-✅ Detecta automaticamente delimitador (vírgula ou ponto e vírgula)
-✅ Lida com campos entre aspas
-✅ Mapeia colunas flexível (aceita variações de nomes)
-✅ Classifica prioridade automaticamente baseado no Score
-✅ Validação de dados obrigatórios
-✅ Mensagens de erro claras
-📁 Estrutura de Arquivos
-Alinhatta/
-├── alinhatta-crm.tsx          # Componente React principal
-├── crm/
-│   └── index.html             # HTML standalone para deploy
-├── GUIA-INTEGRACAO-CRM.md     # Guia completo de integração
-└── README-CRM.md              # Este arquivo
-🚀 Como Usar
-Opção 1: Deploy Direto (Recomendado)
-Vercel (Mais Fácil)
+# 🎯 CRM Alinhatta - Sistema de Gestão de Leads
 
-Acesse vercel.com
-Faça upload da pasta crm ou conecte ao GitHub
-Configure o subdomínio crm.alinhatta.com.br
-Netlify
+Sistema completo de gestão de leads desenvolvido para a Alinhatta.
 
-Acesse netlify.com
-Arraste e solte a pasta crm
-Configure o subdomínio
-Opção 2: Integração com Site Existente
-Siga o guia completo em GUIA-INTEGRACAO-CRM.md
+## 🚀 Deploy no Vercel
 
-📥 Importação de CSV
-Formato Aceito
-O sistema aceita CSV com as seguintes colunas (nomes flexíveis):
+### ⚠️ IMPORTANTE: Configuração do Root Directory
 
-Obrigatórias:
+**ANTES de fazer o deploy, configure o Root Directory no Vercel:**
 
-CNPJ ou Cnpj
-Razão Social ou Razao Social ou Empresa ou Nome
-Opcionais:
+1. Acesse: https://vercel.com/dashboard
+2. Vá em **Settings** → **General** → **Root Directory**
+3. Configure como: `crm`
+4. Salve
 
-Segmento ou Setor ou Área
-Score ou Pontuação (usado para prioridade automática)
-Telefone ou Tel ou WhatsApp
-Email ou E-mail
-Contato ou Nome Contato ou Responsável
-Cargo ou Função ou Posição
-Exemplo de CSV
-CNPJ,Razão Social,Segmento,Score,Telefone,Email
-12.345.678/0001-90,Empresa Exemplo LTDA,Construção,85,(11) 98765-4321,contato@exemplo.com
-98.765.432/0001-10,Outra Empresa SA,TI,72,(21) 91234-5678,info@outra.com
-Como Importar
-Clique em "Importar CSV" no pipeline
-Selecione o arquivo CSV
-Revise o preview (primeiras 5 linhas)
-Clique em "Importar Leads"
-Pronto! Os leads serão adicionados automaticamente
-🎨 Cores da Alinhatta
---primary: #1a7b60        /* Verde principal */
---primary-dark: #155a45  /* Verde escuro */
---secondary: #12a37a      /* Verde secundário */
---accent: #f4d298         /* Dourado */
---neutral-dark: #221b1b   /* Texto escuro */
---neutral-text: #8d7168   /* Texto neutro */
-🔧 Personalização
-Para alterar cores, edite as variáveis CSS no início de alinhatta-crm.tsx (linhas 9-19).
+**Por quê?** O projeto está na pasta `crm/`, então o Vercel precisa saber que essa é a raiz do projeto.
 
-📱 Responsividade
-O sistema é totalmente responsivo e funciona em:
+### Passo a Passo do Deploy
 
-✅ Desktop
-✅ Tablet
-✅ Mobile
-🔐 Segurança
-Nota: Atualmente o sistema usa localStorage do navegador. Para sincronização entre múltiplos SDRs, será necessário:
+1. **Conecte o repositório no Vercel:**
+   - Vercel Dashboard → **Add New Project**
+   - Selecione o repositório `crm-alinhatta`
+   - Configure o **Root Directory** como `crm`
+   - Framework Preset: **Other** ou **Static Site**
+   - Build Command: (deixe vazio)
+   - Output Directory: `.` (ponto)
 
-Backend com banco de dados
-Autenticação de usuários
-API REST para sincronização
-Solução temporária: Os dados são salvos localmente. Para compartilhar entre SDRs, será necessário exportar/importar dados ou implementar backend.
+2. **Deploy automático:**
+   - O Vercel fará deploy automaticamente após cada push no `main`
 
-🐛 Solução de Problemas
-CSV não importa
-Verifique se tem as colunas obrigatórias (CNPJ e Razão Social)
-Certifique-se que o arquivo está em UTF-8
-Verifique se não há linhas vazias no meio do arquivo
-Cores não aparecem
-Verifique se as fontes do Google estão carregando
-Limpe o cache do navegador (Ctrl+F5)
-Dados não persistem
-Verifique se o navegador permite localStorage
-Não use modo anônimo/privado
-📞 Próximos Passos
-✅ Sistema criado e funcional
-✅ Cores da Alinhatta aplicadas
-✅ Importador de CSV robusto
-⏳ Deploy no subdomínio
-⏳ Integração com site institucional
-⏳ Importação dos 50 leads
-⏳ Treinamento dos SDRs
-🎉 Status
-Sistema 100% funcional e pronto para uso!
+3. **Acesse:**
+   - O domínio será: `https://crm-alinhatta.vercel.app`
 
-Desenvolvido para Alinhatta 🚀
+---
+
+## 💻 Desenvolvimento Local
+
+### ⚡ Método Rápido (Windows)
+
+1. **Dê um duplo clique no arquivo:**
+   ```
+   START_SERVER.bat
+   ```
+
+2. **Aguarde a mensagem:**
+   ```
+   🚀 Servidor CRM Alinhatta iniciado!
+   🌐 URL: http://localhost:8000
+   ```
+
+3. **Abra seu navegador e acesse:**
+   ```
+   http://localhost:8000
+   ```
+
+### 🐍 Método Alternativo (Python)
+
+```bash
+cd crm
+python server.py
+```
+
+Acesse: http://localhost:8000
+
+---
+
+## 📋 Funcionalidades
+
+### ✅ Pipeline de Leads
+- Visualização completa de todos os leads
+- Filtros avançados (Status, Prioridade, Segmento, SDR, Origem)
+- Busca por empresa, CNPJ ou contato
+- Ordenação por data, empresa ou valor
+
+### ✅ Gestão de Leads
+- Adicionar novos leads manualmente
+- Editar informações dos leads
+- Registrar interações e histórico
+- Definir follow-ups
+- Excluir leads
+
+### ✅ Importação/Exportação
+- Importar leads via CSV
+- Exportar dados em CSV ou JSON
+- Validação automática de CNPJ
+- Classificação de prioridade baseada em Score
+
+### ✅ Dashboard
+- Métricas em tempo real
+- Distribuição por status
+- Análise por segmento
+- Performance por SDR
+- Análise por origem do lead
+- Alertas de follow-ups
+
+---
+
+## 📥 Importação de CSV
+
+### Formato Aceito
+
+**Obrigatórias:**
+- `CNPJ` ou `Cnpj`
+- `Razão Social` ou `Razao Social` ou `Empresa` ou `Nome`
+
+**Opcionais:**
+- `Segmento`, `Score`, `Telefone`, `Email`, `Contato`, `Cargo`
+
+### Exemplo
+
+```csv
+CNPJ,Razão Social,Segmento,Score,Telefone,Email,Contato
+12.345.678/0001-90,Empresa Exemplo LTDA,Construção,12,(11) 98765-4321,contato@exemplo.com,João Silva
+```
+
+---
+
+## 🎨 Design System
+
+### Cores
+- **Verde Principal:** `#1a7b60`
+- **Verde Secundário:** `#12a37a`
+- **Dourado:** `#f4d298`
+- **Texto Escuro:** `#221b1b`
+
+### Fontes
+- **Títulos:** Montserrat (Bold)
+- **Corpo:** Open Sans (Regular)
+
+---
+
+## 📊 Status dos Leads
+
+- 🆕 **Novo** - Lead recém-cadastrado
+- 📞 **Contato Inicial** - Primeiro contato realizado
+- 📋 **Diagnóstico Agendado** - Reunião agendada
+- 💎 **Qualificado** - Lead qualificado para proposta
+- 📄 **Proposta Enviada** - Proposta enviada ao cliente
+- ✅ **Ganho** - Contrato fechado
+- ❌ **Perdido** - Oportunidade perdida
+
+---
+
+## 💾 Armazenamento de Dados
+
+### Desenvolvimento Local
+- Dados salvos no **localStorage** do navegador
+
+### Produção (Vercel)
+- Opção 1: **Vercel KV** (recomendado)
+  - Configure as variáveis de ambiente no Vercel
+  - `KV_REST_API_URL` e `KV_REST_API_TOKEN`
+- Opção 2: **localStorage** (fallback)
+  - Funciona, mas dados não sincronizam entre usuários
+
+---
+
+## 🔧 Estrutura do Projeto
+
+```
+crm/
+├── index.html              # Página principal
+├── alinhatta-crm.tsx      # Componente React principal
+├── logo.svg               # Logo da Alinhatta
+├── package.json           # Dependências
+├── vercel.json            # Configuração do Vercel
+├── api/
+│   └── leads.js           # API Route para Vercel KV
+├── server.py              # Servidor local (desenvolvimento)
+└── README.md              # Este arquivo
+```
+
+---
+
+## ⚠️ Solução de Problemas
+
+### Erro 404 no Vercel
+- ✅ Configure o **Root Directory** como `crm` no Vercel
+- ✅ Verifique se todos os arquivos estão no Git
+- ✅ Verifique os Build Logs no Vercel
+
+### Página não carrega localmente
+- ✅ Use um servidor local (não abra `index.html` diretamente)
+- ✅ Execute `python server.py` ou `START_SERVER.bat`
+- ✅ Verifique sua conexão com internet (dependências CDN)
+
+### CSV não importa
+- ✅ Verifique se tem as colunas obrigatórias (CNPJ e Razão Social)
+- ✅ Certifique-se que o arquivo está em UTF-8
+
+---
+
+## 📞 Suporte
+
+Para dúvidas ou problemas:
+1. Verifique este README
+2. Verifique o console do navegador (F12)
+3. Verifique os logs do Vercel (se em produção)
+
+---
+
+**Desenvolvido para Alinhatta** 🚀
+
