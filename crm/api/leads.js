@@ -4,8 +4,8 @@
 export default async function handler(req, res) {
   // Configurar CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -26,11 +26,16 @@ export default async function handler(req, res) {
     if (req.method === 'GET') {
       // Buscar todos os leads
       if (kv) {
-        const leads = await kv.get(key);
-        return res.status(200).json({ leads: leads || [] });
+        try {
+          const leads = await kv.get(key);
+          return res.status(200).json({ leads: leads || [] });
+        } catch (kvError) {
+          console.error('Erro ao buscar do KV:', kvError);
+          return res.status(200).json({ leads: [] });
+        }
       } else {
         // Fallback: retornar array vazio se KV não estiver configurado
-        return res.status(200).json({ leads: [] });
+        return res.status(200).json({ leads: [], message: 'KV não configurado, usando localStorage' });
       }
     }
 
@@ -42,11 +47,16 @@ export default async function handler(req, res) {
       }
       
       if (kv) {
-        await kv.set(key, leads);
-        return res.status(200).json({ success: true, count: leads.length });
+        try {
+          await kv.set(key, leads);
+          return res.status(200).json({ success: true, count: leads.length });
+        } catch (kvError) {
+          console.error('Erro ao salvar no KV:', kvError);
+          return res.status(500).json({ error: 'Erro ao salvar no KV', message: kvError.message });
+        }
       } else {
         // Fallback: retornar sucesso mesmo sem KV (dados ficam no localStorage)
-        return res.status(200).json({ success: true, count: leads.length, warning: 'KV não configurado' });
+        return res.status(200).json({ success: true, count: leads.length, warning: 'KV não configurado, usando localStorage' });
       }
     }
 
