@@ -1,0 +1,16 @@
+# Arquivos que não devem ser deployados
+node_modules/
+*.pyc
+__pycache__/
+*.log
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.env
+.env.local
+.vercel
+
