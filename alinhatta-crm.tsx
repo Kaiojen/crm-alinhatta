@@ -424,6 +424,11 @@ const supabaseHelper = {
 };
 
 const CRMAlinhatta = () => {
+  // Estados de autenticação
+  const [user, setUser] = useState(null);
+  const [session, setSession] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
   const [view, setView] = useState('pipeline');
   const [leads, setLeads] = useState([]);
   const [selectedLead, setSelectedLead] = useState(null);
@@ -440,10 +445,45 @@ const CRMAlinhatta = () => {
   const [showExportModal, setShowExportModal] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Carregar leads do storage ao iniciar
+  // Verificar autenticação ao iniciar
   useEffect(() => {
-    loadLeads();
+    checkUser();
+
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+        setSession(session);
+        setUser(session?.user ?? null);
+        setAuthLoading(false);
+      });
+
+      return () => {
+        authListener?.subscription?.unsubscribe();
+      };
+    } else {
+      setAuthLoading(false);
+    }
   }, []);
+
+  const checkUser = async () => {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      setAuthLoading(false);
+      return;
+    }
+
+    const { data: { session } } = await supabase.auth.getSession();
+    setSession(session);
+    setUser(session?.user ?? null);
+    setAuthLoading(false);
+  };
+
+  // Carregar leads do storage ao iniciar (somente se autenticado)
+  useEffect(() => {
+    if (user) {
+      loadLeads();
+    }
+  }, [user]);
 
   const loadLeads = async () => {
     try {
@@ -923,6 +963,33 @@ const CRMAlinhatta = () => {
     followupsHoje: leads.filter(l => l.proximoFollowup === new Date().toISOString().split('T')[0]).length
   };
 
+  // Função de logout
+  const handleLogout = async () => {
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      await supabase.auth.signOut();
+      setUser(null);
+      setSession(null);
+    }
+  };
+
+  // Mostrar loading enquanto verifica autenticação
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+          <p className="text-white">Verificando autenticação...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Mostrar login se não estiver autenticado
+  if (!user) {
+    return <LoginComponent onLogin={() => checkUser()} />;
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen" style={{ backgroundColor: '#0f1419' }} className="flex items-center justify-center">
@@ -947,7 +1014,7 @@ const CRMAlinhatta = () => {
                 <p className="text-gray-300 text-xs sm:text-sm hidden sm:block">Sistema de Gestão de Leads</p>
               </div>
             </div>
-            <div className="flex gap-2 w-full sm:w-auto">
+            <div className="flex gap-2 w-full sm:w-auto items-center">
               <button
                 onClick={() => setView('pipeline')}
                 className={`flex-1 sm:flex-none px-3 sm:px-4 py-3 sm:py-2 rounded-lg font-medium transition text-sm sm:text-base ${
@@ -965,6 +1032,14 @@ const CRMAlinhatta = () => {
                 style={{ fontFamily: 'Montserrat, sans-serif' }}
               >
                 Dashboard
+              </button>
+              <button
+                onClick={handleLogout}
+                className="px-3 sm:px-4 py-3 sm:py-2 rounded-lg font-medium transition text-sm sm:text-base bg-red-600 text-white hover:bg-red-700"
+                style={{ fontFamily: 'Montserrat, sans-serif' }}
+                title="Sair"
+              >
+                🚪 Sair
               </button>
             </div>
           </div>
@@ -2158,10 +2233,131 @@ const ImportCSVModal = ({ onClose, onImport }) => {
   );
 };
 
+// Componente de Login
+const LoginComponent = ({ onLogin }) => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [isSignUp, setIsSignUp] = useState(false);
+
+  const handleAuth = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      setError('Supabase não configurado');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      if (isSignUp) {
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+        });
+        if (error) throw error;
+        setError('Conta criada! Verifique seu email para confirmar.');
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        if (error) throw error;
+        onLogin();
+      }
+    } catch (error) {
+      setError(error.message || 'Erro ao autenticar');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-primary to-secondary flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold text-primary mb-2" style={{ fontFamily: 'Montserrat, sans-serif' }}>
+            CRM Alinhatta
+          </h1>
+          <p className="text-neutral-dark" style={{ fontFamily: 'Montserrat, sans-serif' }}>
+            {isSignUp ? 'Criar nova conta' : 'Entre para continuar'}
+          </p>
+        </div>
+
+        <form onSubmit={handleAuth} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-neutral-dark mb-2" style={{ fontFamily: 'Montserrat, sans-serif' }}>
+              Email
+            </label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+              placeholder="seu@email.com"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-neutral-dark mb-2" style={{ fontFamily: 'Montserrat, sans-serif' }}>
+              Senha
+            </label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              minLength={6}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+              placeholder="Mínimo 6 caracteres"
+            />
+          </div>
+
+          {error && (
+            <div className={`p-3 rounded-lg text-sm ${error.includes('criada') ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+              {error}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-primary text-white py-3 rounded-lg hover:bg-primary-dark transition font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ fontFamily: 'Montserrat, sans-serif' }}
+          >
+            {loading ? 'Processando...' : (isSignUp ? 'Criar Conta' : 'Entrar')}
+          </button>
+
+          <div className="text-center">
+            <button
+              type="button"
+              onClick={() => {
+                setIsSignUp(!isSignUp);
+                setError('');
+              }}
+              className="text-primary hover:underline text-sm"
+              style={{ fontFamily: 'Montserrat, sans-serif' }}
+            >
+              {isSignUp ? 'Já tem conta? Entre aqui' : 'Não tem conta? Crie uma'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 // Tornar disponível globalmente para uso no HTML (sem export default para evitar problemas com Babel)
 if (typeof window !== 'undefined') {
     window.CRMAlinhatta = CRMAlinhatta;
+    window.LoginComponent = LoginComponent;
 } else {
     // Fallback para ambientes não-browser
     globalThis.CRMAlinhatta = CRMAlinhatta;
+    globalThis.LoginComponent = LoginComponent;
 }
