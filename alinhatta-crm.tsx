@@ -68,6 +68,13 @@ const ArrowLeft = createIcon(['M19 12H5', 'M12 19l-7-7 7-7']);
 const BarChart3 = createIcon(['M12 20V10', 'M18 20V4', 'M6 20v-4']);
 const AlertCircle = createIcon(['M12 8v4', 'M12 16h.01', 'M21 12a9 9 0 11-18 0 9 9 0 0118 0z']);
 const Upload = createIcon(['M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4', 'M17 8l-5-5-5 5', 'M12 3v12']);
+const FileText = createIcon(['M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z', 'M14 2v6h6', 'M16 13H8', 'M16 17H8', 'M10 9H8']);
+const Briefcase = createIcon(['M16 20V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v16', 'M8 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2h-4']);
+const CheckCircle = createIcon(['M22 11.08V12a10 10 0 11-5.93-9.14', 'M22 4L12 14.01l-3-3']);
+const Users = createIcon(['M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2', 'M9 11a4 4 0 100-8 4 4 0 000 8z', 'M23 21v-2a4 4 0 00-3-3.87', 'M16 3.13a4 4 0 010 7.75']);
+const MapPin = createIcon(['M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z', 'M12 13a3 3 0 100-6 3 3 0 000 6z']);
+const User = createIcon(['M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2', 'M12 11a4 4 0 100-8 4 4 0 000 8z']);
+const Clipboard = createIcon(['M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2', 'M9 2h6v4H9z']);
 
 // Verificar se os ícones são funções válidas
 if (typeof window !== 'undefined') {
@@ -162,19 +169,19 @@ if (typeof document !== 'undefined') {
 }
 
 const STATUS_OPTIONS = [
-  { value: 'NOVO', label: '🆕 Novo', color: 'bg-blue-900/30 text-blue-300 border-blue-600' },
-  { value: 'CONTATO_INICIAL', label: '📞 Contato Inicial', color: 'bg-yellow-900/30 text-yellow-300 border-yellow-600' },
-  { value: 'DIAGNOSTICO_AGENDADO', label: '📋 Diagnóstico Agendado', color: 'bg-purple-900/30 text-purple-300 border-purple-600' },
-  { value: 'QUALIFICADO', label: '💎 Qualificado', color: 'bg-green-900/30 text-green-300 border-green-600' },
-  { value: 'PROPOSTA_ENVIADA', label: '📄 Proposta Enviada', color: 'bg-orange-900/30 text-orange-300 border-orange-600' },
-  { value: 'GANHO', label: '✅ Ganho', color: 'bg-emerald-900/30 text-emerald-300 border-emerald-600' },
-  { value: 'PERDIDO', label: '❌ Perdido', color: 'bg-red-900/30 text-red-300 border-red-600' }
+  { value: 'NOVO', label: 'Novo', color: 'bg-blue-900/30 text-blue-300 border-blue-600' },
+  { value: 'CONTATO_INICIAL', label: 'Contato Inicial', color: 'bg-yellow-900/30 text-yellow-300 border-yellow-600' },
+  { value: 'DIAGNOSTICO_AGENDADO', label: 'Diagnóstico Agendado', color: 'bg-purple-900/30 text-purple-300 border-purple-600' },
+  { value: 'QUALIFICADO', label: 'Qualificado', color: 'bg-green-900/30 text-green-300 border-green-600' },
+  { value: 'PROPOSTA_ENVIADA', label: 'Proposta Enviada', color: 'bg-orange-900/30 text-orange-300 border-orange-600' },
+  { value: 'GANHO', label: 'Ganho', color: 'bg-emerald-900/30 text-emerald-300 border-emerald-600' },
+  { value: 'PERDIDO', label: 'Perdido', color: 'bg-red-900/30 text-red-300 border-red-600' }
 ];
 
 const PRIORIDADE_OPTIONS = [
-  { value: 'ALTA', label: '🔴 Alta', color: 'bg-red-900/30 border-red-600 text-red-300' },
-  { value: 'MEDIA', label: '🟡 Média', color: 'bg-yellow-900/30 border-yellow-600 text-yellow-300' },
-  { value: 'BAIXA', label: '🟢 Baixa', color: 'bg-green-900/30 border-green-600 text-green-300' }
+  { value: 'ALTA', label: 'Alta', color: 'bg-red-900/30 border-red-600 text-red-300' },
+  { value: 'MEDIA', label: 'Média', color: 'bg-yellow-900/30 border-yellow-600 text-yellow-300' },
+  { value: 'BAIXA', label: 'Baixa', color: 'bg-green-900/30 border-green-600 text-green-300' }
 ];
 
 const PACOTES = ['Starter', 'Pro', 'Premium', 'Avulso'];
@@ -416,7 +423,7 @@ const supabaseHelper = {
         throw new Error('Supabase não disponível');
       }
 
-      console.log(`💾 Salvando ${leads.length} leads no Supabase...`);
+      console.log(`Salvando ${leads.length} leads no Supabase...`);
 
       // Inserir todos os leads de uma vez (mais eficiente que múltiplos upserts)
       const { data, error } = await supabase
@@ -425,14 +432,14 @@ const supabaseHelper = {
         .select();
 
       if (error) {
-        console.error('❌ Erro ao salvar leads:', error);
+        console.error('Erro ao salvar leads:', error);
         throw error;
       }
 
-      console.log(`✅ ${leads.length} leads salvos com sucesso!`, data);
+      console.log(`${leads.length} leads salvos com sucesso!`, data);
       return true;
     } catch (e) {
-      console.error('❌ Erro ao salvar leads no Supabase:', e);
+      console.error('Erro ao salvar leads no Supabase:', e);
       throw e;
     }
   }
@@ -741,7 +748,7 @@ const CRMAlinhatta = () => {
       const semicolonCount = (firstLine.match(/;/g) || []).length;
       const delimiter = semicolonCount > commaCount ? ';' : ',';
 
-      console.log(`🔍 Delimitador detectado: "${delimiter}" (vírgulas: ${commaCount}, ponto-vírgula: ${semicolonCount})`);
+      console.log(`Delimitador detectado: "${delimiter}" (vírgulas: ${commaCount}, ponto-vírgula: ${semicolonCount})`);
 
       // Parse CSV mais robusto (lida com campos entre aspas e aspas duplas escapadas)
       const parseCSVLine = (line) => {
@@ -777,7 +784,7 @@ const CRMAlinhatta = () => {
       }
 
       const headers = parseCSVLine(lines[0]).map(h => h.trim().replace(/^"|"$/g, ''));
-      console.log(`📋 Colunas detectadas (${headers.length}):`, headers);
+      console.log(`Colunas detectadas (${headers.length}):`, headers);
       
       // Mapear possíveis nomes de colunas (case insensitive)
       const getColumnIndex = (possibleNames) => {
@@ -801,7 +808,7 @@ const CRMAlinhatta = () => {
       const contatoIndex = getColumnIndex(['Contato', 'Nome Contato', 'Responsável', 'Responsavel']);
       const cargoIndex = getColumnIndex(['Cargo', 'Função', 'Funcao', 'Posição', 'Posicao']);
 
-      console.log(`📊 Mapeamento de colunas:`, {
+      console.log(`Mapeamento de colunas:`, {
         empresa: empresaIndex >= 0 ? headers[empresaIndex] : 'NÃO ENCONTRADO',
         cnpj: cnpjIndex >= 0 ? headers[cnpjIndex] : 'NÃO ENCONTRADO',
         segmento: segmentoIndex >= 0 ? headers[segmentoIndex] : 'NÃO ENCONTRADO',
@@ -819,7 +826,7 @@ const CRMAlinhatta = () => {
 
         // Log primeira linha para debug
         if (i === 1) {
-          console.log(`📝 Exemplo de linha parseada (primeira linha):`, values);
+          console.log(`Exemplo de linha parseada (primeira linha):`, values);
           console.log(`   Total de campos: ${values.length}`);
         }
 
@@ -913,7 +920,7 @@ const CRMAlinhatta = () => {
         return;
       }
 
-      console.log(`📤 Importando ${validLeads.length} leads novos...`);
+      console.log(`Importando ${validLeads.length} leads novos...`);
 
       // Salvar APENAS os novos leads no Supabase (não os que já existem!)
       await supabaseHelper.saveLeads(validLeads);
@@ -981,10 +988,28 @@ const CRMAlinhatta = () => {
     });
 
   // Gerar lista de segmentos dinamicamente (combina iniciais + segmentos dos leads)
+  // Normaliza para capitalização correta (primeira letra maiúscula, resto minúsculo)
   const getSegmentos = () => {
-    const segmentosFromLeads = [...new Set(leads.map(l => l.segmento).filter(Boolean))];
-    const allSegmentos = [...new Set([...SEGMENTOS_INICIAIS, ...segmentosFromLeads])];
-    return allSegmentos.sort();
+    const normalizeSegmento = (seg) => {
+      if (!seg) return '';
+      // Converte para string, remove espaços extras
+      const cleaned = seg.trim();
+      // Primeira letra maiúscula, resto minúsculo
+      return cleaned.charAt(0).toUpperCase() + cleaned.slice(1).toLowerCase();
+    };
+
+    const segmentosFromLeads = leads
+      .map(l => normalizeSegmento(l.segmento))
+      .filter(Boolean);
+
+    const normalizedIniciais = SEGMENTOS_INICIAIS.map(normalizeSegmento);
+
+    // Remove duplicatas case-insensitive
+    const allSegmentos = [...normalizedIniciais, ...segmentosFromLeads];
+    const uniqueSegmentos = [...new Set(allSegmentos.map(s => s.toLowerCase()))]
+      .map(lower => allSegmentos.find(s => s.toLowerCase() === lower));
+
+    return uniqueSegmentos.sort();
   };
 
   const SEGMENTOS = getSegmentos();
@@ -1185,10 +1210,10 @@ const PipelineView = ({ leads, searchTerm, setSearchTerm, filterStatus, setFilte
 
       {/* Métricas Rápidas */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <MetricCard title="Total Leads" value={metrics.total} icon="📊" />
-        <MetricCard title="Novos" value={metrics.novos} icon="🆕" />
-        <MetricCard title="Em Negociação" value={metrics.emNegociacao} icon="💼" />
-        <MetricCard title="Ganhos" value={metrics.ganhos} icon="✅" color="text-primary" />
+        <MetricCard title="Total Leads" value={metrics.total} icon={<BarChart3 className="w-6 h-6" />} />
+        <MetricCard title="Novos" value={metrics.novos} icon={<FileText className="w-6 h-6" />} />
+        <MetricCard title="Em Negociação" value={metrics.emNegociacao} icon={<Briefcase className="w-6 h-6" />} />
+        <MetricCard title="Ganhos" value={metrics.ganhos} icon={<CheckCircle className="w-6 h-6" />} color="text-primary" />
       </div>
 
       {/* Busca e Filtros */}
@@ -1232,108 +1257,127 @@ const PipelineView = ({ leads, searchTerm, setSearchTerm, filterStatus, setFilte
           </div>
         </div>
 
-        {/* Contador de resultados */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3">
-          <p className="text-sm text-blue-900">
-            <span className="font-bold">{leads.length} leads</span> encontrados
+        {/* Barra de Filtros Profissional */}
+        <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-4 space-y-4">
+          {/* Header com contador */}
+          <div className="flex items-center justify-between border-b border-gray-200 pb-3">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Filtros</h3>
+              <p className="text-xs text-gray-500 mt-1">
+                {leads.length} {leads.length === 1 ? 'resultado' : 'resultados'}
+              </p>
+            </div>
             {(filterStatus !== 'TODOS' || filterPrioridade !== 'TODOS' || filterSegmento !== 'TODOS' || filterOwner !== 'TODOS' || filterOrigem !== 'TODOS' || searchTerm) && (
-              <span> (filtrado de {leads.length} total)</span>
+              <button
+                onClick={() => {
+                  setFilterStatus('TODOS');
+                  setFilterPrioridade('TODOS');
+                  setFilterSegmento('TODOS');
+                  setFilterOwner('TODOS');
+                  setFilterOrigem('TODOS');
+                  setSearchTerm('');
+                }}
+                className="text-xs text-primary hover:text-primary-dark font-medium transition underline"
+              >
+                Limpar filtros
+              </button>
             )}
-          </p>
-        </div>
+          </div>
 
-        <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="px-3 sm:px-4 py-3 sm:py-2 h-12 sm:h-auto border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm sm:text-base font-medium hover:border-gray-400 transition"
-          >
-            <option value="TODOS">📊 Todos os Status</option>
-            {STATUS_OPTIONS.map(s => (
-              <option key={s.value} value={s.value}>{s.label}</option>
-            ))}
-          </select>
+          {/* Grid de filtros limpo e organizado */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">Status</label>
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-primary focus:border-primary bg-white hover:border-gray-400 transition"
+              >
+                <option value="TODOS">Todos</option>
+                {STATUS_OPTIONS.map(s => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
+            </div>
 
-          <select
-            value={filterPrioridade}
-            onChange={(e) => setFilterPrioridade(e.target.value)}
-            className="px-3 sm:px-4 py-3 sm:py-2 h-12 sm:h-auto border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm sm:text-base font-medium hover:border-gray-400 transition"
-          >
-            <option value="TODOS">🎯 Todas as Prioridades</option>
-            {PRIORIDADE_OPTIONS.map(p => (
-              <option key={p.value} value={p.value}>{p.label}</option>
-            ))}
-          </select>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">Prioridade</label>
+              <select
+                value={filterPrioridade}
+                onChange={(e) => setFilterPrioridade(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-primary focus:border-primary bg-white hover:border-gray-400 transition"
+              >
+                <option value="TODOS">Todas</option>
+                {PRIORIDADE_OPTIONS.map(p => (
+                  <option key={p.value} value={p.value}>{p.label}</option>
+                ))}
+              </select>
+            </div>
 
-          <select
-            value={filterSegmento}
-            onChange={(e) => setFilterSegmento(e.target.value)}
-            className="px-3 sm:px-4 py-3 sm:py-2 h-12 sm:h-auto border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm sm:text-base font-medium hover:border-gray-400 transition"
-          >
-            <option value="TODOS">🏢 Todos os Segmentos</option>
-            {segmentos.map(seg => (
-              <option key={seg} value={seg}>{seg}</option>
-            ))}
-          </select>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">Segmento</label>
+              <select
+                value={filterSegmento}
+                onChange={(e) => setFilterSegmento(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-primary focus:border-primary bg-white hover:border-gray-400 transition"
+              >
+                <option value="TODOS">Todos</option>
+                {segmentos.map(seg => (
+                  <option key={seg} value={seg}>{seg}</option>
+                ))}
+              </select>
+            </div>
 
-          <select
-            value={filterOwner}
-            onChange={(e) => setFilterOwner(e.target.value)}
-            className="px-3 sm:px-4 py-3 sm:py-2 h-12 sm:h-auto border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm sm:text-base font-medium hover:border-gray-400 transition"
-          >
-            <option value="TODOS">👤 Todos os SDRs</option>
-            {SDRS.map(sdr => (
-              <option key={sdr} value={sdr}>{sdr}</option>
-            ))}
-          </select>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">SDR Responsável</label>
+              <select
+                value={filterOwner}
+                onChange={(e) => setFilterOwner(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-primary focus:border-primary bg-white hover:border-gray-400 transition"
+              >
+                <option value="TODOS">Todos</option>
+                {SDRS.map(sdr => (
+                  <option key={sdr} value={sdr}>{sdr}</option>
+                ))}
+              </select>
+            </div>
 
-          <select
-            value={filterOrigem}
-            onChange={(e) => setFilterOrigem(e.target.value)}
-            className="px-3 sm:px-4 py-3 sm:py-2 h-12 sm:h-auto border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm sm:text-base font-medium hover:border-gray-400 transition"
-          >
-            <option value="TODOS">📍 Todas as Origens</option>
-            {ORIGENS_LEAD.map(origem => (
-              <option key={origem} value={origem}>{origem}</option>
-            ))}
-          </select>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">Origem</label>
+              <select
+                value={filterOrigem}
+                onChange={(e) => setFilterOrigem(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-primary focus:border-primary bg-white hover:border-gray-400 transition"
+              >
+                <option value="TODOS">Todas</option>
+                {ORIGENS_LEAD.map(origem => (
+                  <option key={origem} value={origem}>{origem}</option>
+                ))}
+              </select>
+            </div>
+          </div>
 
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            className="px-3 sm:px-4 py-3 sm:py-2 h-12 sm:h-auto border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm sm:text-base font-medium hover:border-gray-400 transition"
-          >
-            <option value="dataentrada">📅 Ordenar por: Data</option>
-            <option value="empresa">🏭 Ordenar por: Empresa</option>
-            <option value="valorpotencial">💰 Ordenar por: Valor</option>
-            <option value="status">📊 Ordenar por: Status</option>
-          </select>
-
-          <button
-            onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-            className="px-4 py-3 sm:py-2 h-12 sm:h-auto border-2 border-gray-300 rounded-lg hover:bg-gray-50 transition flex items-center justify-center gap-2 text-base font-medium"
-            title={sortOrder === 'asc' ? 'Crescente' : 'Decrescente'}
-          >
-            {sortOrder === 'asc' ? '↑' : '↓'}
-          </button>
-
-          {/* Botão para limpar filtros */}
-          {(filterStatus !== 'TODOS' || filterPrioridade !== 'TODOS' || filterSegmento !== 'TODOS' || filterOwner !== 'TODOS' || filterOrigem !== 'TODOS' || searchTerm) && (
-            <button
-              onClick={() => {
-                setFilterStatus('TODOS');
-                setFilterPrioridade('TODOS');
-                setFilterSegmento('TODOS');
-                setFilterOwner('TODOS');
-                setFilterOrigem('TODOS');
-                setSearchTerm('');
-              }}
-              className="px-4 py-3 sm:py-2 h-12 sm:h-auto bg-red-500 text-white rounded-lg hover:bg-red-600 transition flex items-center justify-center gap-2 text-sm sm:text-base font-bold"
-              title="Limpar todos os filtros"
+          {/* Ordenação em linha separada */}
+          <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
+            <label className="text-xs font-medium text-gray-600">Ordenar por:</label>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-primary focus:border-primary bg-white hover:border-gray-400 transition"
             >
-              ✕ Limpar Filtros
+              <option value="dataentrada">Data de Entrada</option>
+              <option value="empresa">Empresa</option>
+              <option value="valorpotencial">Valor Potencial</option>
+              <option value="status">Status</option>
+            </select>
+            <button
+              onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+              className="px-3 py-1.5 text-sm border border-gray-300 rounded-md hover:bg-gray-50 transition"
+              title={sortOrder === 'asc' ? 'Ordem Crescente' : 'Ordem Decrescente'}
+            >
+              {sortOrder === 'asc' ? '↑ A-Z' : '↓ Z-A'}
             </button>
-          )}
+          </div>
         </div>
       </div>
 
@@ -1397,7 +1441,7 @@ const LeadCard = ({ lead, onClick }) => {
           <h3 className="font-bold text-lg text-neutral-dark" style={{ fontFamily: 'Montserrat, sans-serif' }}>{lead.empresa}</h3>
           <p className="text-sm text-neutral-text">{lead.segmento}</p>
           {lead.owner && (
-            <p className="text-xs text-primary font-medium mt-1">👤 {lead.owner}</p>
+            <p className="text-xs text-primary font-medium mt-1">{lead.owner}</p>
           )}
         </div>
         <div className="flex flex-col items-end gap-2">
@@ -1409,7 +1453,7 @@ const LeadCard = ({ lead, onClick }) => {
           </span>
           {lead.origem && (
             <span className="px-2 py-1 rounded text-xs font-medium bg-accent text-neutral-dark">
-              📍 {lead.origem}
+              {lead.origem}
             </span>
           )}
         </div>
@@ -1546,8 +1590,8 @@ const ViewLeadDetails = ({ lead }) => {
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-      <DetailField label="SDR Responsável" value={lead.owner || 'Não atribuído'} icon={<span className="text-primary">👤</span>} />
-      <DetailField label="Origem do Lead" value={lead.origem || '-'} icon={<span className="text-secondary">📍</span>} />
+      <DetailField label="SDR Responsável" value={lead.owner || 'Não atribuído'} icon={<User className="w-4 h-4 text-primary" />} />
+      <DetailField label="Origem do Lead" value={lead.origem || '-'} icon={<MapPin className="w-4 h-4 text-secondary" />} />
       <DetailField label="Status" value={status?.label} icon={null} />
       <DetailField label="Prioridade" value={prioridade?.label} icon={null} />
       <DetailField label="Contato Principal" value={lead.contato} icon={null} />
@@ -1560,6 +1604,17 @@ const ViewLeadDetails = ({ lead }) => {
       <DetailField label="Próximo Follow-up" value={lead.proximoFollowup ? new Date(lead.proximoFollowup).toLocaleDateString('pt-BR') : '-'} icon={null} />
       <DetailField label="Nº de Tentativas" value={lead.tentativas || 0} icon={null} />
       <DetailField label="Data de Entrada" value={lead.dataentrada ? new Date(lead.dataentrada).toLocaleDateString('pt-BR') : '-'} icon={null} />
+      {lead.ficha_diagnostica && (
+        <div className="md:col-span-2">
+          <div className="p-4 rounded-lg" style={{ backgroundColor: '#1a1f26' }}>
+            <p className="text-sm text-gray-400 mb-2 flex items-center gap-2">
+              <Clipboard className="w-4 h-4" />
+              <strong>Ficha Diagnóstica</strong>
+            </p>
+            <p className="text-gray-200 whitespace-pre-wrap">{lead.ficha_diagnostica}</p>
+          </div>
+        </div>
+      )}
       {lead.notaUltimaInteracao && (
         <div className="md:col-span-2">
           <DetailField label="Última Nota" value={lead.notaUltimaInteracao} />
@@ -1709,6 +1764,23 @@ const EditLeadForm = ({ lead, onChange, onSave }) => (
       />
     </div>
     <div className="sm:col-span-2">
+      <label className="block text-sm font-medium text-gray-300 mb-1 flex items-center gap-2">
+        <Clipboard className="w-4 h-4" />
+        Ficha Diagnóstica
+      </label>
+      <textarea
+        value={lead.ficha_diagnostica || ''}
+        onChange={(e) => onChange({ ...lead, ficha_diagnostica: e.target.value })}
+        placeholder="Registre aqui informações importantes sobre a empresa, necessidades identificadas, pontos de atenção, etc..."
+        rows={6}
+        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-base resize-y"
+        style={{ minHeight: '120px' }}
+      />
+      <p className="text-xs text-gray-400 mt-1">
+        Use este espaço para documentar informações estratégicas sobre o lead
+      </p>
+    </div>
+    <div className="sm:col-span-2">
       <button
         onClick={onSave}
         className="w-full bg-primary text-white px-6 py-4 sm:py-3 rounded-lg hover:bg-primary-dark transition font-medium text-base"
@@ -1752,30 +1824,30 @@ const DashboardView = ({ leads, metrics, segmentos }) => {
 
       {/* Métricas Principais */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <MetricCard 
-          title="Total de Leads" 
-          value={metrics.total} 
-          icon="📊" 
+        <MetricCard
+          title="Total de Leads"
+          value={metrics.total}
+          icon={<BarChart3 className="w-6 h-6" />}
           subtitle="No pipeline"
         />
-        <MetricCard 
-          title="Taxa de Conversão" 
-          value={`${taxaConversao}%`} 
-          icon="📈" 
+        <MetricCard
+          title="Taxa de Conversão"
+          value={`${taxaConversao}%`}
+          icon={<TrendingUp className="w-6 h-6" />}
           subtitle={`${metrics.ganhos} ganhos`}
           color="text-primary"
         />
-        <MetricCard 
-          title="Em Negociação" 
-          value={metrics.emNegociacao} 
-          icon="💼" 
+        <MetricCard
+          title="Em Negociação"
+          value={metrics.emNegociacao}
+          icon={<Briefcase className="w-6 h-6" />}
           subtitle="Propostas enviadas"
           color="text-orange-600"
         />
-        <MetricCard 
-          title="Valor Pipeline" 
-          value={`R$ ${(metrics.valorPipeline / 1000).toFixed(0)}k`} 
-          icon="💰" 
+        <MetricCard
+          title="Valor Pipeline"
+          value={`R$ ${(metrics.valorPipeline / 1000).toFixed(0)}k`}
+          icon={<TrendingUp className="w-6 h-6" />}
           subtitle="Potencial total"
           color="text-emerald-600"
         />
@@ -1830,7 +1902,7 @@ const DashboardView = ({ leads, metrics, segmentos }) => {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {ownerDistribution.map((owner, idx) => (
               <div key={idx} className="bg-gradient-to-br from-primary to-secondary text-white p-4 rounded-lg flex justify-between items-center">
-                <span className="font-medium" style={{ fontFamily: 'Montserrat, sans-serif' }}>👤 {owner.label}</span>
+                <span className="font-medium" style={{ fontFamily: 'Montserrat, sans-serif' }}>{owner.label}</span>
                 <span className="bg-white text-primary px-3 py-1 rounded-full font-bold" style={{ fontFamily: 'Montserrat, sans-serif' }}>
                   {owner.count}
                 </span>
@@ -1847,7 +1919,7 @@ const DashboardView = ({ leads, metrics, segmentos }) => {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {origemDistribution.map((origem, idx) => (
               <div key={idx} className="bg-accent p-4 rounded-lg flex justify-between items-center">
-                <span className="font-medium text-neutral-dark">📍 {origem.label}</span>
+                <span className="font-medium text-neutral-dark">{origem.label}</span>
                 <span className="bg-primary text-white px-3 py-1 rounded-full font-bold" style={{ fontFamily: 'Montserrat, sans-serif' }}>
                   {origem.count}
                 </span>
@@ -1862,7 +1934,7 @@ const DashboardView = ({ leads, metrics, segmentos }) => {
         <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-lg shadow p-6">
           <div className="flex items-center justify-between mb-2">
             <h4 className="font-medium">Novos Leads</h4>
-            <span className="text-3xl">🆕</span>
+            <FileText className="w-8 h-8" />
           </div>
           <p className="text-3xl font-bold">{metrics.novos}</p>
           <p className="text-blue-100 text-sm">Aguardando primeiro contato</p>
@@ -1871,7 +1943,7 @@ const DashboardView = ({ leads, metrics, segmentos }) => {
         <div className="bg-gradient-to-br from-primary to-secondary text-white rounded-lg shadow p-6">
           <div className="flex items-center justify-between mb-2">
             <h4 className="font-medium" style={{ fontFamily: 'Montserrat, sans-serif' }}>Vitórias</h4>
-            <span className="text-3xl">✅</span>
+            <CheckCircle className="w-8 h-8" />
           </div>
           <p className="text-3xl font-bold" style={{ fontFamily: 'Montserrat, sans-serif' }}>{metrics.ganhos}</p>
           <p className="text-white text-sm opacity-90">Contratos fechados</p>
@@ -1880,7 +1952,7 @@ const DashboardView = ({ leads, metrics, segmentos }) => {
         <div className="bg-gradient-to-br from-red-500 to-red-600 text-white rounded-lg shadow p-6">
           <div className="flex items-center justify-between mb-2">
             <h4 className="font-medium">Perdidos</h4>
-            <span className="text-3xl">❌</span>
+            <X className="w-8 h-8" />
           </div>
           <p className="text-3xl font-bold">{metrics.perdidos}</p>
           <p className="text-red-100 text-sm">Oportunidades não convertidas</p>
@@ -1907,11 +1979,11 @@ const DashboardView = ({ leads, metrics, segmentos }) => {
   );
 };
 
-const MetricCard = ({ title, value, icon, subtitle, color = "text-gray-200" }) => (
+const MetricCard = ({ title, value, icon, subtitle = '', color = "text-gray-200" }) => (
   <div className="rounded-lg shadow p-6" style={{ backgroundColor: '#1e252b' }}>
     <div className="flex items-center justify-between mb-2">
       <p className="text-sm text-gray-300">{title}</p>
-      <span className="text-2xl">{icon}</span>
+      <div className="text-gray-400">{icon}</div>
     </div>
     <p className={`text-3xl font-bold ${color}`}>{value}</p>
     {subtitle && <p className="text-sm text-gray-400 mt-1">{subtitle}</p>}
