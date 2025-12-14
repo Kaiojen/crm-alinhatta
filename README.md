@@ -200,4 +200,3 @@ Para dúvidas ou problemas:
 ---
 
 **Desenvolvido para Alinhatta** 🚀
-
