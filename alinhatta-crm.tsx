@@ -735,18 +735,29 @@ const CRMAlinhatta = () => {
 
   const importLeadsFromCSV = async (csvData) => {
     try {
-      // Detectar delimitador (vírgula ou ponto e vírgula)
-      const delimiter = csvData.includes(';') ? ';' : ',';
-      
-      // Parse CSV mais robusto (lida com campos entre aspas)
+      // Detectar delimitador de forma mais inteligente
+      const firstLine = csvData.split('\n')[0];
+      const commaCount = (firstLine.match(/,/g) || []).length;
+      const semicolonCount = (firstLine.match(/;/g) || []).length;
+      const delimiter = semicolonCount > commaCount ? ';' : ',';
+
+      console.log(`🔍 Delimitador detectado: "${delimiter}" (vírgulas: ${commaCount}, ponto-vírgula: ${semicolonCount})`);
+
+      // Parse CSV mais robusto (lida com campos entre aspas e aspas duplas escapadas)
       const parseCSVLine = (line) => {
         const result = [];
         let current = '';
         let inQuotes = false;
-        
+
         for (let i = 0; i < line.length; i++) {
           const char = line[i];
-          if (char === '"') {
+          const nextChar = line[i + 1];
+
+          // Lidar com aspas duplas escapadas ""
+          if (char === '"' && nextChar === '"' && inQuotes) {
+            current += '"';
+            i++; // Pular próxima aspa
+          } else if (char === '"') {
             inQuotes = !inQuotes;
           } else if (char === delimiter && !inQuotes) {
             result.push(current.trim());
@@ -758,14 +769,15 @@ const CRMAlinhatta = () => {
         result.push(current.trim());
         return result;
       };
-      
+
       const lines = csvData.split('\n').filter(line => line.trim());
       if (lines.length < 2) {
         alert('CSV vazio ou sem dados. Verifique o arquivo.');
         return;
       }
-      
-      const headers = parseCSVLine(lines[0]).map(h => h.trim().replace(/"/g, ''));
+
+      const headers = parseCSVLine(lines[0]).map(h => h.trim().replace(/^"|"$/g, ''));
+      console.log(`📋 Colunas detectadas (${headers.length}):`, headers);
       
       // Mapear possíveis nomes de colunas (case insensitive)
       const getColumnIndex = (possibleNames) => {
@@ -788,15 +800,29 @@ const CRMAlinhatta = () => {
       const emailIndex = getColumnIndex(['Email', 'E-mail', 'E-mail']); // Removido 'Contato' - risco de importar nome como email
       const contatoIndex = getColumnIndex(['Contato', 'Nome Contato', 'Responsável', 'Responsavel']);
       const cargoIndex = getColumnIndex(['Cargo', 'Função', 'Funcao', 'Posição', 'Posicao']);
-      
+
+      console.log(`📊 Mapeamento de colunas:`, {
+        empresa: empresaIndex >= 0 ? headers[empresaIndex] : 'NÃO ENCONTRADO',
+        cnpj: cnpjIndex >= 0 ? headers[cnpjIndex] : 'NÃO ENCONTRADO',
+        segmento: segmentoIndex >= 0 ? headers[segmentoIndex] : 'NÃO ENCONTRADO',
+        score: scoreIndex >= 0 ? headers[scoreIndex] : 'NÃO ENCONTRADO',
+        rank: rankIndex >= 0 ? headers[rankIndex] : 'NÃO ENCONTRADO'
+      });
+
       const newLeads = [];
       let skipped = 0;
-      
+
       for (let i = 1; i < lines.length; i++) {
         if (!lines[i].trim()) continue;
-        
-        const values = parseCSVLine(lines[i]).map(v => v.replace(/"/g, '').trim());
-        
+
+        const values = parseCSVLine(lines[i]).map(v => v.replace(/^"|"$/g, '').trim());
+
+        // Log primeira linha para debug
+        if (i === 1) {
+          console.log(`📝 Exemplo de linha parseada (primeira linha):`, values);
+          console.log(`   Total de campos: ${values.length}`);
+        }
+
         // Extrair dados
         const empresa = empresaIndex !== -1 ? values[empresaIndex] : (values[0] || '');
         const cnpj = cnpjIndex !== -1 ? values[cnpjIndex] : (values[1] || '');
@@ -1206,13 +1232,23 @@ const PipelineView = ({ leads, searchTerm, setSearchTerm, filterStatus, setFilte
           </div>
         </div>
 
+        {/* Contador de resultados */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3">
+          <p className="text-sm text-blue-900">
+            <span className="font-bold">{leads.length} leads</span> encontrados
+            {(filterStatus !== 'TODOS' || filterPrioridade !== 'TODOS' || filterSegmento !== 'TODOS' || filterOwner !== 'TODOS' || filterOrigem !== 'TODOS' || searchTerm) && (
+              <span> (filtrado de {leads.length} total)</span>
+            )}
+          </p>
+        </div>
+
         <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
-            className="px-3 sm:px-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-sm sm:text-base"
+            className="px-3 sm:px-4 py-3 sm:py-2 h-12 sm:h-auto border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm sm:text-base font-medium hover:border-gray-400 transition"
           >
-            <option value="TODOS">Todos os Status</option>
+            <option value="TODOS">📊 Todos os Status</option>
             {STATUS_OPTIONS.map(s => (
               <option key={s.value} value={s.value}>{s.label}</option>
             ))}
@@ -1221,9 +1257,9 @@ const PipelineView = ({ leads, searchTerm, setSearchTerm, filterStatus, setFilte
           <select
             value={filterPrioridade}
             onChange={(e) => setFilterPrioridade(e.target.value)}
-            className="px-3 sm:px-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-sm sm:text-base"
+            className="px-3 sm:px-4 py-3 sm:py-2 h-12 sm:h-auto border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm sm:text-base font-medium hover:border-gray-400 transition"
           >
-            <option value="TODOS">Todas as Prioridades</option>
+            <option value="TODOS">🎯 Todas as Prioridades</option>
             {PRIORIDADE_OPTIONS.map(p => (
               <option key={p.value} value={p.value}>{p.label}</option>
             ))}
@@ -1232,9 +1268,9 @@ const PipelineView = ({ leads, searchTerm, setSearchTerm, filterStatus, setFilte
           <select
             value={filterSegmento}
             onChange={(e) => setFilterSegmento(e.target.value)}
-            className="px-3 sm:px-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-sm sm:text-base"
+            className="px-3 sm:px-4 py-3 sm:py-2 h-12 sm:h-auto border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm sm:text-base font-medium hover:border-gray-400 transition"
           >
-            <option value="TODOS">Todos os Segmentos</option>
+            <option value="TODOS">🏢 Todos os Segmentos</option>
             {segmentos.map(seg => (
               <option key={seg} value={seg}>{seg}</option>
             ))}
@@ -1243,9 +1279,9 @@ const PipelineView = ({ leads, searchTerm, setSearchTerm, filterStatus, setFilte
           <select
             value={filterOwner}
             onChange={(e) => setFilterOwner(e.target.value)}
-            className="px-3 sm:px-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-sm sm:text-base"
+            className="px-3 sm:px-4 py-3 sm:py-2 h-12 sm:h-auto border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm sm:text-base font-medium hover:border-gray-400 transition"
           >
-            <option value="TODOS">Todos os SDRs</option>
+            <option value="TODOS">👤 Todos os SDRs</option>
             {SDRS.map(sdr => (
               <option key={sdr} value={sdr}>{sdr}</option>
             ))}
@@ -1254,9 +1290,9 @@ const PipelineView = ({ leads, searchTerm, setSearchTerm, filterStatus, setFilte
           <select
             value={filterOrigem}
             onChange={(e) => setFilterOrigem(e.target.value)}
-            className="px-3 sm:px-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-sm sm:text-base"
+            className="px-3 sm:px-4 py-3 sm:py-2 h-12 sm:h-auto border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm sm:text-base font-medium hover:border-gray-400 transition"
           >
-            <option value="TODOS">Todas as Origens</option>
+            <option value="TODOS">📍 Todas as Origens</option>
             {ORIGENS_LEAD.map(origem => (
               <option key={origem} value={origem}>{origem}</option>
             ))}
@@ -1265,21 +1301,39 @@ const PipelineView = ({ leads, searchTerm, setSearchTerm, filterStatus, setFilte
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value)}
-            className="px-3 sm:px-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-sm sm:text-base"
+            className="px-3 sm:px-4 py-3 sm:py-2 h-12 sm:h-auto border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary text-sm sm:text-base font-medium hover:border-gray-400 transition"
           >
-            <option value="dataentrada">Ordenar por: Data</option>
-            <option value="empresa">Ordenar por: Empresa</option>
-            <option value="valorpotencial">Ordenar por: Valor</option>
-            <option value="status">Ordenar por: Status</option>
+            <option value="dataentrada">📅 Ordenar por: Data</option>
+            <option value="empresa">🏭 Ordenar por: Empresa</option>
+            <option value="valorpotencial">💰 Ordenar por: Valor</option>
+            <option value="status">📊 Ordenar por: Status</option>
           </select>
 
           <button
             onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-            className="px-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg hover:bg-gray-50 transition flex items-center justify-center gap-2 text-base"
+            className="px-4 py-3 sm:py-2 h-12 sm:h-auto border-2 border-gray-300 rounded-lg hover:bg-gray-50 transition flex items-center justify-center gap-2 text-base font-medium"
             title={sortOrder === 'asc' ? 'Crescente' : 'Decrescente'}
           >
             {sortOrder === 'asc' ? '↑' : '↓'}
           </button>
+
+          {/* Botão para limpar filtros */}
+          {(filterStatus !== 'TODOS' || filterPrioridade !== 'TODOS' || filterSegmento !== 'TODOS' || filterOwner !== 'TODOS' || filterOrigem !== 'TODOS' || searchTerm) && (
+            <button
+              onClick={() => {
+                setFilterStatus('TODOS');
+                setFilterPrioridade('TODOS');
+                setFilterSegmento('TODOS');
+                setFilterOwner('TODOS');
+                setFilterOrigem('TODOS');
+                setSearchTerm('');
+              }}
+              className="px-4 py-3 sm:py-2 h-12 sm:h-auto bg-red-500 text-white rounded-lg hover:bg-red-600 transition flex items-center justify-center gap-2 text-sm sm:text-base font-bold"
+              title="Limpar todos os filtros"
+            >
+              ✕ Limpar Filtros
+            </button>
+          )}
         </div>
       </div>
 
