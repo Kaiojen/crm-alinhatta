@@ -1,7 +1,5 @@
 {
   "version": 2,
-  "buildCommand": null,
-  "outputDirectory": "crm",
   "rewrites": [
     {
       "source": "/((?!api/).*)",
@@ -9,3 +7,4 @@
     }
   ]
 }
+
