@@ -466,7 +466,7 @@ const CRMAlinhatta = () => {
     }
   };
 
-  const addLead = (newLead) => {
+  const addLead = async (newLead) => {
     // Validar campos obrigatórios
     if (!newLead.owner) {
       showNotification('SDR responsável é obrigatório!', 'error');
@@ -515,7 +515,7 @@ const CRMAlinhatta = () => {
     }
   };
 
-  const updateLead = (updatedLead) => {
+  const updateLead = async (updatedLead) => {
     // Validar CNPJ
     if (!validateCNPJ(updatedLead.cnpj)) {
       showNotification('CNPJ inválido. Verifique os dígitos verificadores.', 'error');
