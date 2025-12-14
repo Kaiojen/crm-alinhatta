@@ -307,7 +307,7 @@ const supabaseHelper = {
       const { data, error } = await supabase
         .from('leads')
         .select('*')
-        .order('dataEntrada', { ascending: false });
+        .order('dataentrada', { ascending: false });
       
       if (error) {
         console.error('Erro ao carregar leads:', error);
@@ -433,7 +433,7 @@ const CRMAlinhatta = () => {
   const [filterSegmento, setFilterSegmento] = useState('TODOS');
   const [filterOwner, setFilterOwner] = useState('TODOS');
   const [filterOrigem, setFilterOrigem] = useState('TODOS');
-  const [sortBy, setSortBy] = useState('dataEntrada'); // dataEntrada, empresa, valorPotencial
+  const [sortBy, setSortBy] = useState('dataentrada'); // dataentrada, empresa, valorpotencial
   const [sortOrder, setSortOrder] = useState('desc'); // asc, desc
   const [showAddModal, setShowAddModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
@@ -497,7 +497,7 @@ const CRMAlinhatta = () => {
       id: Date.now().toString(),
       owner: newLead.owner || '', // SDR responsável (obrigatório)
       origem: newLead.origem || 'Planilha', // Origem do lead
-      dataEntrada: new Date().toISOString().split('T')[0],
+      dataentrada: new Date().toISOString().split('T')[0],
       historico: [{
         data: new Date().toISOString().split('T')[0],
         nota: `Lead criado no sistema${newLead.origem ? ` (Origem: ${newLead.origem})` : ''}`
@@ -660,8 +660,8 @@ const CRMAlinhatta = () => {
         lead.status || '',
         lead.prioridade || '',
         lead.pacoteInteresse || '',
-        lead.valorPotencial || 0,
-        lead.dataEntrada || '',
+        lead.valorpotencial || 0,
+        lead.dataentrada || '',
         lead.ultimaInteracao || '',
         lead.proximoFollowup || '',
         lead.tentativas || 0
@@ -806,10 +806,10 @@ const CRMAlinhatta = () => {
           owner: '', // Será definido manualmente após importação (obrigatório editar depois)
           origem: 'Planilha', // Origem padrão para imports CSV
           pacoteInteresse: '',
-          valorPotencial: 0,
+          valorpotencial: 0,
           proximoFollowup: '',
           tentativas: 0,
-          dataEntrada: new Date().toISOString().split('T')[0],
+          dataentrada: new Date().toISOString().split('T')[0],
           historico: [{
             data: new Date().toISOString().split('T')[0],
             nota: `Lead importado via CSV${scoreValue > 0 ? ` (Score: ${scoreValue})` : ''}`
@@ -884,12 +884,12 @@ const CRMAlinhatta = () => {
       if (sortBy === 'empresa') {
         aValue = a.empresa?.toLowerCase() || '';
         bValue = b.empresa?.toLowerCase() || '';
-      } else if (sortBy === 'valorPotencial') {
-        aValue = a.valorPotencial || 0;
-        bValue = b.valorPotencial || 0;
-      } else if (sortBy === 'dataEntrada') {
-        aValue = a.dataEntrada || '';
-        bValue = b.dataEntrada || '';
+      } else if (sortBy === 'valorpotencial') {
+        aValue = a.valorpotencial || 0;
+        bValue = b.valorpotencial || 0;
+      } else if (sortBy === 'dataentrada') {
+        aValue = a.dataentrada || '';
+        bValue = b.dataentrada || '';
       } else {
         aValue = a[sortBy] || '';
         bValue = b[sortBy] || '';
@@ -919,7 +919,7 @@ const CRMAlinhatta = () => {
     perdidos: leads.filter(l => l.status === 'PERDIDO').length,
     emNegociacao: leads.filter(l => l.status === 'PROPOSTA_ENVIADA').length,
     valorPipeline: leads.filter(l => ['QUALIFICADO', 'PROPOSTA_ENVIADA'].includes(l.status))
-                        .reduce((sum, l) => sum + (l.valorPotencial || 0), 0),
+                        .reduce((sum, l) => sum + (l.valorpotencial || 0), 0),
     followupsHoje: leads.filter(l => l.proximoFollowup === new Date().toISOString().split('T')[0]).length
   };
 
@@ -1180,9 +1180,9 @@ const PipelineView = ({ leads, searchTerm, setSearchTerm, filterStatus, setFilte
             onChange={(e) => setSortBy(e.target.value)}
             className="px-3 sm:px-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-sm sm:text-base"
           >
-            <option value="dataEntrada">Ordenar por: Data</option>
+            <option value="dataentrada">Ordenar por: Data</option>
             <option value="empresa">Ordenar por: Empresa</option>
-            <option value="valorPotencial">Ordenar por: Valor</option>
+            <option value="valorpotencial">Ordenar por: Valor</option>
             <option value="status">Ordenar por: Status</option>
           </select>
 
@@ -1414,11 +1414,11 @@ const ViewLeadDetails = ({ lead }) => {
       <DetailField label="Telefone" value={lead.telefone} icon={<Phone className="w-4 h-4" />} />
       <DetailField label="Email" value={lead.email} icon={<Mail className="w-4 h-4" />} />
       <DetailField label="Pacote de Interesse" value={lead.pacoteInteresse} icon={null} />
-      <DetailField label="Valor Potencial" value={lead.valorPotencial ? `R$ ${lead.valorPotencial.toLocaleString('pt-BR')}` : '-'} icon={null} />
+      <DetailField label="Valor Potencial" value={lead.valorpotencial ? `R$ ${lead.valorpotencial.toLocaleString('pt-BR')}` : '-'} icon={null} />
       <DetailField label="Última Interação" value={lead.ultimaInteracao ? new Date(lead.ultimaInteracao).toLocaleDateString('pt-BR') : '-'} icon={null} />
       <DetailField label="Próximo Follow-up" value={lead.proximoFollowup ? new Date(lead.proximoFollowup).toLocaleDateString('pt-BR') : '-'} icon={null} />
       <DetailField label="Nº de Tentativas" value={lead.tentativas || 0} icon={null} />
-      <DetailField label="Data de Entrada" value={lead.dataEntrada ? new Date(lead.dataEntrada).toLocaleDateString('pt-BR') : '-'} icon={null} />
+      <DetailField label="Data de Entrada" value={lead.dataentrada ? new Date(lead.dataentrada).toLocaleDateString('pt-BR') : '-'} icon={null} />
       {lead.notaUltimaInteracao && (
         <div className="md:col-span-2">
           <DetailField label="Última Nota" value={lead.notaUltimaInteracao} />
@@ -1553,8 +1553,8 @@ const EditLeadForm = ({ lead, onChange, onSave }) => (
       <label className="block text-sm font-medium text-gray-300 mb-1">Valor Potencial (R$)</label>
       <input
         type="number"
-        value={lead.valorPotencial || ''}
-        onChange={(e) => onChange({ ...lead, valorPotencial: parseFloat(e.target.value) || 0 })}
+        value={lead.valorpotencial || ''}
+        onChange={(e) => onChange({ ...lead, valorpotencial: parseFloat(e.target.value) || 0 })}
         className="w-full px-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-base"
       />
     </div>
@@ -1791,7 +1791,7 @@ const AddLeadModal = ({ onClose, onAdd, segmentos }) => {
     prioridade: 'MEDIA',
     status: 'NOVO',
     pacoteInteresse: '',
-    valorPotencial: 0,
+    valorpotencial: 0,
     proximoFollowup: '',
     tentativas: 0
   });
@@ -1979,8 +1979,8 @@ const AddLeadModal = ({ onClose, onAdd, segmentos }) => {
               <label className="block text-sm font-medium text-gray-300 mb-1">Valor Potencial (R$)</label>
               <input
                 type="number"
-                value={formData.valorPotencial}
-                onChange={(e) => setFormData({ ...formData, valorPotencial: parseFloat(e.target.value) || 0 })}
+                value={formData.valorpotencial}
+                onChange={(e) => setFormData({ ...formData, valorpotencial: parseFloat(e.target.value) || 0 })}
                 className="w-full px-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-base"
                 placeholder="1800"
               />
