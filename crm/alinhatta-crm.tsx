@@ -275,99 +275,150 @@ const validateEmail = (email) => {
   return re.test(email);
 };
 
-// Storage helper com suporte para API (Vercel) e fallback para localStorage
-const storageHelper = {
-  // Detectar se está em produção (Vercel)
-  isProduction: () => {
-    return typeof window !== 'undefined' && 
-           (window.location.hostname.includes('vercel.app') || 
-            window.location.hostname.includes('vercel.com') ||
-            window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1');
-  },
+// Helper do Supabase
+const getSupabaseClient = () => {
+  if (typeof window === 'undefined' || !window.supabase) {
+    console.error('Supabase não está disponível');
+    return null;
+  }
   
-  get: async (key, isJSON = false) => {
+  const supabaseUrl = window.__SUPABASE_URL__;
+  const supabaseKey = window.__SUPABASE_ANON_KEY__;
+  
+  if (!supabaseUrl || !supabaseKey) {
+    console.error('Chaves do Supabase não configuradas');
+    return null;
+  }
+  
+  return window.supabase.createClient(supabaseUrl, supabaseKey);
+};
+
+// Helper para operações com leads no Supabase
+const supabaseHelper = {
+  // Carregar todos os leads
+  loadLeads: async () => {
     try {
-      // Se estiver em produção, tenta usar API
-      if (storageHelper.isProduction()) {
-        try {
-          const response = await fetch('/api/leads');
-          if (response.ok) {
-            const data = await response.json();
-            if (data.leads && Array.isArray(data.leads)) {
-              return { value: isJSON ? JSON.stringify(data.leads) : data.leads };
-            }
-          }
-        } catch (apiError) {
-          console.warn('API não disponível, usando localStorage:', apiError);
-          // Continua para fallback localStorage
-        }
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        console.warn('Supabase não disponível, retornando array vazio');
+        return [];
       }
       
-      // Tenta usar window.storage se disponível
-      if (typeof window !== 'undefined' && window.storage && window.storage.get) {
-        const result = await window.storage.get(key, isJSON);
-        if (result && result.value) return result;
+      const { data, error } = await supabase
+        .from('leads')
+        .select('*')
+        .order('dataEntrada', { ascending: false });
+      
+      if (error) {
+        console.error('Erro ao carregar leads:', error);
+        return [];
       }
       
-      // Fallback para localStorage
-      if (typeof window !== 'undefined' && window.localStorage) {
-        const value = localStorage.getItem(key);
-        if (value === null) return null;
-        return { value: isJSON ? value : JSON.parse(value) };
-      }
-      
-      return null;
+      return data || [];
     } catch (e) {
-      console.error('Erro ao ler storage:', e);
-      return null;
+      console.error('Erro ao carregar leads do Supabase:', e);
+      return [];
     }
   },
   
-  set: async (key, value, isJSON = false) => {
+  // Adicionar um novo lead
+  addLead: async (lead) => {
     try {
-      const dataToSave = isJSON ? value : JSON.stringify(value);
-      const leadsArray = isJSON ? JSON.parse(value) : value;
-      
-      // Se estiver em produção, tenta salvar via API
-      if (storageHelper.isProduction()) {
-        try {
-          const response = await fetch('/api/leads', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ leads: leadsArray })
-          });
-          
-          if (response.ok) {
-            const result = await response.json();
-            if (result.success) {
-              console.log('Dados salvos via API com sucesso');
-              return true;
-            }
-          }
-        } catch (apiError) {
-          console.warn('Erro ao salvar via API, usando localStorage:', apiError);
-          // Continua para fallback localStorage
-        }
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        throw new Error('Supabase não disponível');
       }
       
-      // Tenta usar window.storage se disponível
-      if (typeof window !== 'undefined' && window.storage && window.storage.set) {
-        await window.storage.set(key, dataToSave, isJSON);
-        return true;
+      const { data, error } = await supabase
+        .from('leads')
+        .insert([lead])
+        .select()
+        .single();
+      
+      if (error) {
+        console.error('Erro ao adicionar lead:', error);
+        throw error;
       }
       
-      // Fallback para localStorage
-      if (typeof window !== 'undefined' && window.localStorage) {
-        localStorage.setItem(key, dataToSave);
-        return true;
-      }
-      
-      return false;
+      return data;
     } catch (e) {
-      console.error('Erro ao salvar storage:', e);
-      return false;
+      console.error('Erro ao adicionar lead no Supabase:', e);
+      throw e;
+    }
+  },
+  
+  // Atualizar um lead existente
+  updateLead: async (lead) => {
+    try {
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        throw new Error('Supabase não disponível');
+      }
+      
+      const { data, error } = await supabase
+        .from('leads')
+        .update(lead)
+        .eq('id', lead.id)
+        .select()
+        .single();
+      
+      if (error) {
+        console.error('Erro ao atualizar lead:', error);
+        throw error;
+      }
+      
+      return data;
+    } catch (e) {
+      console.error('Erro ao atualizar lead no Supabase:', e);
+      throw e;
+    }
+  },
+  
+  // Deletar um lead
+  deleteLead: async (leadId) => {
+    try {
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        throw new Error('Supabase não disponível');
+      }
+      
+      const { error } = await supabase
+        .from('leads')
+        .delete()
+        .eq('id', leadId);
+      
+      if (error) {
+        console.error('Erro ao deletar lead:', error);
+        throw error;
+      }
+      
+      return true;
+    } catch (e) {
+      console.error('Erro ao deletar lead no Supabase:', e);
+      throw e;
+    }
+  },
+  
+  // Salvar múltiplos leads (usado para importação e sincronização)
+  saveLeads: async (leads) => {
+    try {
+      const supabase = getSupabaseClient();
+      if (!supabase) {
+        throw new Error('Supabase não disponível');
+      }
+      
+      // Para cada lead, fazer upsert (insert ou update)
+      const promises = leads.map(lead => 
+        supabase
+          .from('leads')
+          .upsert(lead, { onConflict: 'id' })
+      );
+      
+      await Promise.all(promises);
+      return true;
+    } catch (e) {
+      console.error('Erro ao salvar leads no Supabase:', e);
+      throw e;
     }
   }
 };
@@ -396,15 +447,10 @@ const CRMAlinhatta = () => {
 
   const loadLeads = async () => {
     try {
-      const result = await storageHelper.get('alinhatta-leads', true);
-      if (result && result.value) {
-        setLeads(JSON.parse(result.value));
-      } else {
-        // Dados iniciais de exemplo
-        setLeads([]);
-      }
+      const leadsData = await supabaseHelper.loadLeads();
+      setLeads(leadsData);
     } catch (error) {
-      console.log('Primeira vez usando o sistema, iniciando vazio');
+      console.error('Erro ao carregar leads:', error);
       setLeads([]);
     }
     setIsLoading(false);
@@ -412,7 +458,7 @@ const CRMAlinhatta = () => {
 
   const saveLeads = async (updatedLeads) => {
     try {
-      await storageHelper.set('alinhatta-leads', JSON.stringify(updatedLeads), true);
+      await supabaseHelper.saveLeads(updatedLeads);
       setLeads(updatedLeads);
     } catch (error) {
       console.error('Erro ao salvar:', error);
@@ -457,9 +503,16 @@ const CRMAlinhatta = () => {
         nota: `Lead criado no sistema${newLead.origem ? ` (Origem: ${newLead.origem})` : ''}`
       }]
     };
-    saveLeads([...leads, lead]);
-    setShowAddModal(false);
-    showNotification('Lead adicionado com sucesso!', 'success');
+    
+    try {
+      await supabaseHelper.addLead(lead);
+      setLeads([...leads, lead]);
+      setShowAddModal(false);
+      showNotification('Lead adicionado com sucesso!', 'success');
+    } catch (error) {
+      console.error('Erro ao adicionar lead:', error);
+      showNotification('Erro ao adicionar lead. Tente novamente.', 'error');
+    }
   };
 
   const updateLead = (updatedLead) => {
@@ -481,20 +534,26 @@ const CRMAlinhatta = () => {
       return;
     }
 
-    const updated = leads.map(l => {
-      if (l.id === updatedLead.id) {
-        return {
-          ...updatedLead,
-          cnpj: updatedLead.cnpj.replace(/\D/g, '') // Remove formatação
-        };
-      }
-      return l;
-    });
-    saveLeads(updated);
-    // Corrigido: setar o lead atualizado, não o array inteiro
-    const updatedLeadObj = updated.find(l => l.id === updatedLead.id);
-    setSelectedLead(updatedLeadObj);
-    showNotification('Lead atualizado com sucesso!', 'success');
+    const leadToUpdate = {
+      ...updatedLead,
+      cnpj: updatedLead.cnpj.replace(/\D/g, '') // Remove formatação
+    };
+    
+    try {
+      await supabaseHelper.updateLead(leadToUpdate);
+      const updated = leads.map(l => {
+        if (l.id === updatedLead.id) {
+          return leadToUpdate;
+        }
+        return l;
+      });
+      setLeads(updated);
+      setSelectedLead(leadToUpdate);
+      showNotification('Lead atualizado com sucesso!', 'success');
+    } catch (error) {
+      console.error('Erro ao atualizar lead:', error);
+      showNotification('Erro ao atualizar lead. Tente novamente.', 'error');
+    }
   };
 
   const addInteracao = (leadId, nota) => {
@@ -512,15 +571,21 @@ const CRMAlinhatta = () => {
     updateLead(updated);
   };
 
-  const deleteLead = (leadId) => {
+  const deleteLead = async (leadId) => {
     const lead = leads.find(l => l.id === leadId);
     if (window.confirm(`Tem certeza que deseja excluir o lead "${lead?.empresa}"? Esta ação não pode ser desfeita.`)) {
-      const updated = leads.filter(l => l.id !== leadId);
-      saveLeads(updated);
-      if (selectedLead && selectedLead.id === leadId) {
-        setSelectedLead(null);
+      try {
+        await supabaseHelper.deleteLead(leadId);
+        const updated = leads.filter(l => l.id !== leadId);
+        setLeads(updated);
+        if (selectedLead && selectedLead.id === leadId) {
+          setSelectedLead(null);
+        }
+        showNotification('Lead excluído com sucesso!', 'success');
+      } catch (error) {
+        console.error('Erro ao deletar lead:', error);
+        showNotification('Erro ao excluir lead. Tente novamente.', 'error');
       }
-      showNotification('Lead excluído com sucesso!', 'success');
     }
   };
 
@@ -873,19 +938,19 @@ const CRMAlinhatta = () => {
     <div className="min-h-screen" style={{ backgroundColor: '#0f1419' }}>
       {/* Header */}
       <header className="bg-gradient-to-r from-primary to-secondary text-white shadow-lg" style={{ backgroundColor: '#0f1419' }}>
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <img src="logo.svg" alt="Alinhatta Logo" className="w-12 h-12" style={{ filter: 'brightness(0) invert(1)' }} />
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0">
+            <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
+              <img src="logo.svg" alt="Alinhatta Logo" className="w-10 h-10 sm:w-12 sm:h-12" style={{ filter: 'brightness(0) invert(1)' }} />
               <div>
-                <h1 className="text-2xl font-bold" style={{ fontFamily: 'Montserrat, sans-serif' }}>ALINHATTA CRM</h1>
-                <p className="text-gray-300 text-sm">Sistema de Gestão de Leads</p>
+                <h1 className="text-lg sm:text-2xl font-bold" style={{ fontFamily: 'Montserrat, sans-serif' }}>ALINHATTA CRM</h1>
+                <p className="text-gray-300 text-xs sm:text-sm hidden sm:block">Sistema de Gestão de Leads</p>
               </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 w-full sm:w-auto">
               <button
                 onClick={() => setView('pipeline')}
-                className={`px-4 py-2 rounded-lg font-medium transition ${
+                className={`flex-1 sm:flex-none px-3 sm:px-4 py-3 sm:py-2 rounded-lg font-medium transition text-sm sm:text-base ${
                   view === 'pipeline' ? 'bg-primary text-white' : 'bg-primary-dark/50 text-white hover:bg-primary-dark'
                 }`}
                 style={{ fontFamily: 'Montserrat, sans-serif' }}
@@ -894,7 +959,7 @@ const CRMAlinhatta = () => {
               </button>
               <button
                 onClick={() => setView('dashboard')}
-                className={`px-4 py-2 rounded-lg font-medium transition ${
+                className={`flex-1 sm:flex-none px-3 sm:px-4 py-3 sm:py-2 rounded-lg font-medium transition text-sm sm:text-base ${
                   view === 'dashboard' ? 'bg-primary text-white' : 'bg-primary-dark/50 text-white hover:bg-primary-dark'
                 }`}
                 style={{ fontFamily: 'Montserrat, sans-serif' }}
@@ -907,7 +972,7 @@ const CRMAlinhatta = () => {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 py-6">
+      <main className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
         {view === 'pipeline' && !selectedLead && (
           <PipelineView
             leads={filteredAndSortedLeads}
@@ -1006,7 +1071,7 @@ const PipelineView = ({ leads, searchTerm, setSearchTerm, filterStatus, setFilte
       )}
 
       {/* Métricas Rápidas */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <MetricCard title="Total Leads" value={metrics.total} icon="📊" />
         <MetricCard title="Novos" value={metrics.novos} icon="🆕" />
         <MetricCard title="Em Negociação" value={metrics.emNegociacao} icon="💼" />
@@ -1014,8 +1079,8 @@ const PipelineView = ({ leads, searchTerm, setSearchTerm, filterStatus, setFilte
       </div>
 
       {/* Busca e Filtros */}
-      <div className="rounded-lg shadow p-4 space-y-4" style={{ backgroundColor: '#1e252b', borderTop: '4px solid #1a7b60' }}>
-        <div className="flex flex-col md:flex-row gap-4">
+      <div className="rounded-lg shadow p-3 sm:p-4 space-y-3 sm:space-y-4" style={{ backgroundColor: '#1e252b', borderTop: '4px solid #1a7b60' }}>
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input
@@ -1023,40 +1088,42 @@ const PipelineView = ({ leads, searchTerm, setSearchTerm, filterStatus, setFilte
               placeholder="Buscar por empresa, CNPJ ou contato..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+              className="w-full pl-10 pr-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-base"
             />
           </div>
-          <button
-            onClick={onImportLeads}
-            className="bg-accent text-neutral-dark px-4 py-2 rounded-lg hover:bg-accent-dark transition flex items-center justify-center gap-2 font-bold"
-            style={{ fontFamily: 'Montserrat, sans-serif' }}
-          >
-            <Upload className="w-5 h-5" />
-            Importar
-          </button>
-          <button
-            onClick={onExportLeads}
-            className="bg-secondary text-white px-4 py-2 rounded-lg hover:opacity-90 transition flex items-center justify-center gap-2 font-bold"
-            style={{ fontFamily: 'Montserrat, sans-serif' }}
-          >
-            <BarChart3 className="w-5 h-5" />
-            Exportar
-          </button>
-          <button
-            onClick={onAddLead}
-            className="bg-primary text-white px-6 py-2 rounded-lg hover:bg-primary-dark transition flex items-center justify-center gap-2 font-bold"
-            style={{ fontFamily: 'Montserrat, sans-serif' }}
-          >
-            <Plus className="w-5 h-5" />
-            Novo Lead
-          </button>
+          <div className="grid grid-cols-2 sm:flex gap-2 sm:gap-0">
+            <button
+              onClick={onImportLeads}
+              className="bg-accent text-neutral-dark px-3 sm:px-4 py-3 sm:py-2 rounded-lg hover:bg-accent-dark transition flex items-center justify-center gap-2 font-bold text-sm sm:text-base"
+              style={{ fontFamily: 'Montserrat, sans-serif' }}
+            >
+              <Upload className="w-4 h-4 sm:w-5 sm:h-5" />
+              <span className="hidden sm:inline">Importar</span>
+            </button>
+            <button
+              onClick={onExportLeads}
+              className="bg-secondary text-white px-3 sm:px-4 py-3 sm:py-2 rounded-lg hover:opacity-90 transition flex items-center justify-center gap-2 font-bold text-sm sm:text-base"
+              style={{ fontFamily: 'Montserrat, sans-serif' }}
+            >
+              <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5" />
+              <span className="hidden sm:inline">Exportar</span>
+            </button>
+            <button
+              onClick={onAddLead}
+              className="bg-primary text-white px-4 sm:px-6 py-3 sm:py-2 rounded-lg hover:bg-primary-dark transition flex items-center justify-center gap-2 font-bold text-sm sm:text-base col-span-2 sm:col-span-1"
+              style={{ fontFamily: 'Montserrat, sans-serif' }}
+            >
+              <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
+              Novo Lead
+            </button>
+          </div>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+            className="px-3 sm:px-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-sm sm:text-base"
           >
             <option value="TODOS">Todos os Status</option>
             {STATUS_OPTIONS.map(s => (
@@ -1067,7 +1134,7 @@ const PipelineView = ({ leads, searchTerm, setSearchTerm, filterStatus, setFilte
           <select
             value={filterPrioridade}
             onChange={(e) => setFilterPrioridade(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+            className="px-3 sm:px-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-sm sm:text-base"
           >
             <option value="TODOS">Todas as Prioridades</option>
             {PRIORIDADE_OPTIONS.map(p => (
@@ -1078,7 +1145,7 @@ const PipelineView = ({ leads, searchTerm, setSearchTerm, filterStatus, setFilte
           <select
             value={filterSegmento}
             onChange={(e) => setFilterSegmento(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+            className="px-3 sm:px-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-sm sm:text-base"
           >
             <option value="TODOS">Todos os Segmentos</option>
             {segmentos.map(seg => (
@@ -1089,7 +1156,7 @@ const PipelineView = ({ leads, searchTerm, setSearchTerm, filterStatus, setFilte
           <select
             value={filterOwner}
             onChange={(e) => setFilterOwner(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+            className="px-3 sm:px-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-sm sm:text-base"
           >
             <option value="TODOS">Todos os SDRs</option>
             {SDRS.map(sdr => (
@@ -1100,7 +1167,7 @@ const PipelineView = ({ leads, searchTerm, setSearchTerm, filterStatus, setFilte
           <select
             value={filterOrigem}
             onChange={(e) => setFilterOrigem(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+            className="px-3 sm:px-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-sm sm:text-base"
           >
             <option value="TODOS">Todas as Origens</option>
             {ORIGENS_LEAD.map(origem => (
@@ -1111,7 +1178,7 @@ const PipelineView = ({ leads, searchTerm, setSearchTerm, filterStatus, setFilte
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+            className="px-3 sm:px-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-sm sm:text-base"
           >
             <option value="dataEntrada">Ordenar por: Data</option>
             <option value="empresa">Ordenar por: Empresa</option>
@@ -1121,7 +1188,7 @@ const PipelineView = ({ leads, searchTerm, setSearchTerm, filterStatus, setFilte
 
           <button
             onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition flex items-center gap-2"
+            className="px-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg hover:bg-gray-50 transition flex items-center justify-center gap-2 text-base"
             title={sortOrder === 'asc' ? 'Crescente' : 'Decrescente'}
           >
             {sortOrder === 'asc' ? '↑' : '↓'}
@@ -1136,7 +1203,7 @@ const PipelineView = ({ leads, searchTerm, setSearchTerm, filterStatus, setFilte
             <p className="text-gray-300 text-lg mb-4">Nenhum lead cadastrado ainda</p>
             <button
               onClick={onAddLead}
-              className="bg-primary text-white px-6 py-3 rounded-lg hover:bg-primary-dark transition inline-flex items-center gap-2"
+              className="bg-primary text-white px-6 py-4 rounded-lg hover:bg-primary-dark transition inline-flex items-center justify-center gap-2 text-base"
               style={{ fontFamily: 'Montserrat, sans-serif' }}
             >
               <Plus className="w-5 h-5" />
@@ -1179,7 +1246,7 @@ const LeadCard = ({ lead, onClick }) => {
   return (
     <div
       onClick={onClick}
-      className={`rounded-lg shadow hover:shadow-lg transition cursor-pointer p-4 border-l-4 ${
+      className={`rounded-lg shadow hover:shadow-lg transition cursor-pointer p-4 sm:p-5 border-l-4 ${
         isFollowupAtrasado ? 'border-red-500' : isFollowupHoje ? 'border-accent' : 'border-primary'
       }`}
       style={{ backgroundColor: '#1e252b' }}
@@ -1207,7 +1274,7 @@ const LeadCard = ({ lead, onClick }) => {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 text-sm text-neutral-text mb-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 text-sm text-neutral-text mb-3">
         <div className="flex items-center gap-2">
           <Phone className="w-4 h-4" />
           <span>{lead.telefone || 'Sem telefone'}</span>
@@ -1266,16 +1333,16 @@ const LeadDetailView = ({ lead, onBack, onUpdate, onAddInteracao, formatCNPJ }) 
         Voltar para Pipeline
       </button>
 
-      <div className="rounded-lg shadow-lg p-6" style={{ backgroundColor: '#1e252b' }}>
-        <div className="flex justify-between items-start mb-6">
-          <div className="flex-1">
-            <h2 className="text-3xl font-bold text-gray-200 mb-2">{lead.empresa}</h2>
-            <p className="text-gray-300">CNPJ: {formatCNPJ(lead.cnpj)}</p>
-            <p className="text-gray-300">{lead.segmento}</p>
+      <div className="rounded-lg shadow-lg p-4 sm:p-6" style={{ backgroundColor: '#1e252b' }}>
+        <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-6">
+          <div className="flex-1 w-full">
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-200 mb-2 break-words">{lead.empresa}</h2>
+            <p className="text-gray-300 text-sm sm:text-base break-all">CNPJ: {formatCNPJ(lead.cnpj)}</p>
+            <p className="text-gray-300 text-sm sm:text-base">{lead.segmento}</p>
           </div>
           <button
             onClick={() => setIsEditing(!isEditing)}
-            className="bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary-dark transition flex items-center gap-2"
+            className="bg-primary text-white px-4 py-3 sm:py-2 rounded-lg hover:bg-primary-dark transition flex items-center justify-center gap-2 w-full sm:w-auto text-base"
             style={{ fontFamily: 'Montserrat, sans-serif' }}
           >
             {isEditing ? <Save className="w-4 h-4" /> : <Edit2 className="w-4 h-4" />}
@@ -1292,18 +1359,18 @@ const LeadDetailView = ({ lead, onBack, onUpdate, onAddInteracao, formatCNPJ }) 
         {/* Nova Interação */}
         <div className="mt-8 border-t pt-6">
           <h3 className="text-xl font-bold text-gray-200 mb-4">Registrar Nova Interação</h3>
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             <input
               type="text"
               value={novaInteracao}
               onChange={(e) => setNovaInteracao(e.target.value)}
               placeholder="Ex: Cliente pediu mais informações sobre Pacote Pro..."
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+              className="flex-1 px-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-base"
               onKeyPress={(e) => e.key === 'Enter' && handleAddInteracao()}
             />
             <button
               onClick={handleAddInteracao}
-              className="bg-primary text-white px-6 py-2 rounded-lg hover:bg-primary-dark transition"
+              className="bg-primary text-white px-6 py-3 sm:py-2 h-12 sm:h-auto rounded-lg hover:bg-primary-dark transition text-base"
               style={{ fontFamily: 'Montserrat, sans-serif' }}
             >
               Adicionar
@@ -1337,7 +1404,7 @@ const ViewLeadDetails = ({ lead }) => {
   const prioridade = PRIORIDADE_OPTIONS.find(p => p.value === lead.prioridade);
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
       <DetailField label="SDR Responsável" value={lead.owner || 'Não atribuído'} icon={<span className="text-primary">👤</span>} />
       <DetailField label="Origem do Lead" value={lead.origem || '-'} icon={<span className="text-secondary">📍</span>} />
       <DetailField label="Status" value={status?.label} icon={null} />
@@ -1372,7 +1439,7 @@ const DetailField = ({ label, value, icon = null }) => (
 );
 
 const EditLeadForm = ({ lead, onChange, onSave }) => (
-  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
     <div>
       <label className="block text-sm font-medium text-gray-300 mb-1">
         SDR Responsável <span className="text-red-500">*</span>
@@ -1381,7 +1448,7 @@ const EditLeadForm = ({ lead, onChange, onSave }) => (
         value={lead.owner || ''}
         onChange={(e) => onChange({ ...lead, owner: e.target.value })}
         required
-        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+        className="w-full px-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-base"
       >
         <option value="">Selecione um SDR...</option>
         {SDRS.map(sdr => (
@@ -1394,7 +1461,7 @@ const EditLeadForm = ({ lead, onChange, onSave }) => (
       <select
         value={lead.origem || ''}
         onChange={(e) => onChange({ ...lead, origem: e.target.value })}
-        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+        className="w-full px-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-base"
       >
         <option value="">Selecione...</option>
         {ORIGENS_LEAD.map(origem => (
@@ -1407,7 +1474,7 @@ const EditLeadForm = ({ lead, onChange, onSave }) => (
       <select
         value={lead.status}
         onChange={(e) => onChange({ ...lead, status: e.target.value })}
-        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+        className="w-full px-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-base"
       >
         {STATUS_OPTIONS.map(s => (
           <option key={s.value} value={s.value}>{s.label}</option>
@@ -1419,7 +1486,7 @@ const EditLeadForm = ({ lead, onChange, onSave }) => (
       <select
         value={lead.prioridade}
         onChange={(e) => onChange({ ...lead, prioridade: e.target.value })}
-        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+        className="w-full px-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-base"
       >
         {PRIORIDADE_OPTIONS.map(p => (
           <option key={p.value} value={p.value}>{p.label}</option>
@@ -1432,7 +1499,7 @@ const EditLeadForm = ({ lead, onChange, onSave }) => (
         type="text"
         value={lead.contato || ''}
         onChange={(e) => onChange({ ...lead, contato: e.target.value })}
-        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+        className="w-full px-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-base"
       />
     </div>
     <div>
@@ -1441,7 +1508,7 @@ const EditLeadForm = ({ lead, onChange, onSave }) => (
         type="text"
         value={lead.cargo || ''}
         onChange={(e) => onChange({ ...lead, cargo: e.target.value })}
-        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+        className="w-full px-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-base"
       />
     </div>
     <div>
@@ -1454,7 +1521,7 @@ const EditLeadForm = ({ lead, onChange, onSave }) => (
           onChange({ ...lead, telefone: masked });
         }}
         maxLength={15}
-        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+        className="w-full px-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-base"
       />
     </div>
     <div>
@@ -1463,7 +1530,7 @@ const EditLeadForm = ({ lead, onChange, onSave }) => (
         type="email"
         value={lead.email || ''}
         onChange={(e) => onChange({ ...lead, email: e.target.value })}
-        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+        className="w-full px-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-base"
       />
       {lead.email && !validateEmail(lead.email) && (
         <p className="text-red-500 text-xs mt-1">Email inválido</p>
@@ -1474,7 +1541,7 @@ const EditLeadForm = ({ lead, onChange, onSave }) => (
       <select
         value={lead.pacoteInteresse || ''}
         onChange={(e) => onChange({ ...lead, pacoteInteresse: e.target.value })}
-        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+        className="w-full px-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-base"
       >
         <option value="">Selecione...</option>
         {PACOTES.map(p => (
@@ -1488,7 +1555,7 @@ const EditLeadForm = ({ lead, onChange, onSave }) => (
         type="number"
         value={lead.valorPotencial || ''}
         onChange={(e) => onChange({ ...lead, valorPotencial: parseFloat(e.target.value) || 0 })}
-        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+        className="w-full px-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-base"
       />
     </div>
     <div>
@@ -1497,13 +1564,13 @@ const EditLeadForm = ({ lead, onChange, onSave }) => (
         type="date"
         value={lead.proximoFollowup || ''}
         onChange={(e) => onChange({ ...lead, proximoFollowup: e.target.value })}
-        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+        className="w-full px-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-base"
       />
     </div>
-    <div className="md:col-span-2">
+    <div className="sm:col-span-2">
       <button
         onClick={onSave}
-        className="w-full bg-primary text-white px-6 py-3 rounded-lg hover:bg-primary-dark transition font-medium"
+        className="w-full bg-primary text-white px-6 py-4 sm:py-3 rounded-lg hover:bg-primary-dark transition font-medium text-base"
         style={{ fontFamily: 'Montserrat, sans-serif' }}
       >
         Salvar Alterações
@@ -1543,7 +1610,7 @@ const DashboardView = ({ leads, metrics, segmentos }) => {
       <h2 className="text-2xl font-bold text-gray-200">Dashboard de Métricas</h2>
 
       {/* Métricas Principais */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <MetricCard 
           title="Total de Leads" 
           value={metrics.total} 
@@ -1602,7 +1669,7 @@ const DashboardView = ({ leads, metrics, segmentos }) => {
       {segmentoDistribution.length > 0 && (
         <div className="rounded-lg shadow p-6" style={{ backgroundColor: '#1e252b' }}>
           <h3 className="text-xl font-bold text-gray-800 mb-4">Leads por Segmento</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {segmentoDistribution.map((seg, idx) => (
               <div key={idx} className="p-4 rounded-lg flex justify-between items-center" style={{ backgroundColor: '#1a1f26' }}>
                 <span className="font-medium text-gray-200">{seg.label}</span>
@@ -1619,7 +1686,7 @@ const DashboardView = ({ leads, metrics, segmentos }) => {
       {ownerDistribution.length > 0 && (
         <div className="rounded-lg shadow p-6" style={{ backgroundColor: '#1e252b' }}>
           <h3 className="text-xl font-bold text-gray-800 mb-4">Leads por SDR</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {ownerDistribution.map((owner, idx) => (
               <div key={idx} className="bg-gradient-to-br from-primary to-secondary text-white p-4 rounded-lg flex justify-between items-center">
                 <span className="font-medium" style={{ fontFamily: 'Montserrat, sans-serif' }}>👤 {owner.label}</span>
@@ -1636,7 +1703,7 @@ const DashboardView = ({ leads, metrics, segmentos }) => {
       {origemDistribution.length > 0 && (
         <div className="rounded-lg shadow p-6" style={{ backgroundColor: '#1e252b' }}>
           <h3 className="text-xl font-bold text-gray-800 mb-4">Leads por Origem</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {origemDistribution.map((origem, idx) => (
               <div key={idx} className="bg-accent p-4 rounded-lg flex justify-between items-center">
                 <span className="font-medium text-neutral-dark">📍 {origem.label}</span>
@@ -1650,7 +1717,7 @@ const DashboardView = ({ leads, metrics, segmentos }) => {
       )}
 
       {/* Performance Semanal */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-lg shadow p-6">
           <div className="flex items-center justify-between mb-2">
             <h4 className="font-medium">Novos Leads</h4>
@@ -1737,21 +1804,21 @@ const AddLeadModal = ({ onClose, onAdd, segmentos }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b border-gray-200 flex justify-between items-center sticky top-0 bg-white">
-          <h3 className="text-2xl font-bold text-gray-800">Adicionar Novo Lead</h3>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+      <div className="bg-white rounded-t-2xl sm:rounded-lg shadow-xl max-w-2xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto" style={{ maxHeight: '95vh' }}>
+        <div className="p-4 sm:p-6 border-b border-gray-200 flex justify-between items-center sticky top-0 bg-white z-10">
+          <h3 className="text-xl sm:text-2xl font-bold text-gray-800">Adicionar Novo Lead</h3>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700 transition"
+            className="text-gray-500 hover:text-gray-700 transition p-2 -mr-2"
           >
             <X className="w-6 h-6" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="md:col-span-2">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="sm:col-span-2">
               <label className="block text-sm font-medium text-gray-300 mb-1">
                 Empresa * <span className="text-red-500">*</span>
               </label>
@@ -1760,7 +1827,7 @@ const AddLeadModal = ({ onClose, onAdd, segmentos }) => {
                 required
                 value={formData.empresa}
                 onChange={(e) => setFormData({ ...formData, empresa: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+                className="w-full px-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-base"
                 placeholder="Razão Social da empresa"
               />
             </div>
@@ -1778,7 +1845,7 @@ const AddLeadModal = ({ onClose, onAdd, segmentos }) => {
                   setFormData({ ...formData, cnpj: masked });
                 }}
                 maxLength={18}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+                className="w-full px-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-base"
                 placeholder="00.000.000/0000-00"
               />
               {formData.cnpj && !validateCNPJ(formData.cnpj) && (
@@ -1794,7 +1861,7 @@ const AddLeadModal = ({ onClose, onAdd, segmentos }) => {
                 value={formData.owner}
                 onChange={(e) => setFormData({ ...formData, owner: e.target.value })}
                 required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+                className="w-full px-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-base"
               >
                 <option value="">Selecione um SDR...</option>
                 {SDRS.map(sdr => (
@@ -1808,7 +1875,7 @@ const AddLeadModal = ({ onClose, onAdd, segmentos }) => {
               <select
                 value={formData.origem}
                 onChange={(e) => setFormData({ ...formData, origem: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+                className="w-full px-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-base"
               >
                 {ORIGENS_LEAD.map(origem => (
                   <option key={origem} value={origem}>{origem}</option>
@@ -1821,7 +1888,7 @@ const AddLeadModal = ({ onClose, onAdd, segmentos }) => {
               <select
                 value={formData.segmento}
                 onChange={(e) => setFormData({ ...formData, segmento: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+                className="w-full px-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-base"
               >
                 <option value="">Selecione...</option>
                 {segmentos.map(seg => (
@@ -1836,7 +1903,7 @@ const AddLeadModal = ({ onClose, onAdd, segmentos }) => {
                 type="text"
                 value={formData.contato}
                 onChange={(e) => setFormData({ ...formData, contato: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+                className="w-full px-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-base"
                 placeholder="Nome do decisor"
               />
             </div>
@@ -1847,7 +1914,7 @@ const AddLeadModal = ({ onClose, onAdd, segmentos }) => {
                 type="text"
                 value={formData.cargo}
                 onChange={(e) => setFormData({ ...formData, cargo: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+                className="w-full px-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-base"
                 placeholder="Ex: Diretor Comercial"
               />
             </div>
@@ -1862,7 +1929,7 @@ const AddLeadModal = ({ onClose, onAdd, segmentos }) => {
                   setFormData({ ...formData, telefone: masked });
                 }}
                 maxLength={15}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+                className="w-full px-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-base"
                 placeholder="(00) 00000-0000"
               />
             </div>
@@ -1873,7 +1940,7 @@ const AddLeadModal = ({ onClose, onAdd, segmentos }) => {
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+                className="w-full px-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-base"
                 placeholder="contato@empresa.com"
               />
               {formData.email && !validateEmail(formData.email) && (
@@ -1886,7 +1953,7 @@ const AddLeadModal = ({ onClose, onAdd, segmentos }) => {
               <select
                 value={formData.prioridade}
                 onChange={(e) => setFormData({ ...formData, prioridade: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+                className="w-full px-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-base"
               >
                 {PRIORIDADE_OPTIONS.map(p => (
                   <option key={p.value} value={p.value}>{p.label}</option>
@@ -1899,7 +1966,7 @@ const AddLeadModal = ({ onClose, onAdd, segmentos }) => {
               <select
                 value={formData.pacoteInteresse}
                 onChange={(e) => setFormData({ ...formData, pacoteInteresse: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+                className="w-full px-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-base"
               >
                 <option value="">Selecione...</option>
                 {PACOTES.map(p => (
@@ -1914,7 +1981,7 @@ const AddLeadModal = ({ onClose, onAdd, segmentos }) => {
                 type="number"
                 value={formData.valorPotencial}
                 onChange={(e) => setFormData({ ...formData, valorPotencial: parseFloat(e.target.value) || 0 })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+                className="w-full px-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-base"
                 placeholder="1800"
               />
             </div>
@@ -1925,23 +1992,23 @@ const AddLeadModal = ({ onClose, onAdd, segmentos }) => {
                 type="date"
                 value={formData.proximoFollowup}
                 onChange={(e) => setFormData({ ...formData, proximoFollowup: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary"
+                className="w-full px-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-base"
               />
             </div>
           </div>
 
-          <div className="mt-6 flex gap-3">
+          <div className="mt-6 flex flex-col sm:flex-row gap-3">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 bg-gray-200 text-gray-800 px-6 py-3 rounded-lg hover:bg-gray-300 transition font-medium"
+              className="flex-1 bg-gray-200 text-gray-800 px-6 py-4 sm:py-3 rounded-lg hover:bg-gray-300 transition font-medium text-base"
               style={{ fontFamily: 'Montserrat, sans-serif' }}
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="flex-1 bg-primary text-white px-6 py-3 rounded-lg hover:bg-primary-dark transition font-medium"
+              className="flex-1 bg-primary text-white px-6 py-4 sm:py-3 rounded-lg hover:bg-primary-dark transition font-medium text-base"
               style={{ fontFamily: 'Montserrat, sans-serif' }}
             >
               Adicionar Lead
@@ -1955,31 +2022,31 @@ const AddLeadModal = ({ onClose, onAdd, segmentos }) => {
 
 const ExportModal = ({ onClose, onExport }) => {
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
-        <div className="p-6 border-b border-gray-200 flex justify-between items-center" style={{ borderTop: '4px solid #1a7b60' }}>
-          <h3 className="text-2xl font-bold text-primary" style={{ fontFamily: 'Montserrat, sans-serif' }}>Exportar Leads</h3>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+      <div className="bg-white rounded-t-2xl sm:rounded-lg shadow-xl max-w-md w-full">
+        <div className="p-4 sm:p-6 border-b border-gray-200 flex justify-between items-center" style={{ borderTop: '4px solid #1a7b60' }}>
+          <h3 className="text-xl sm:text-2xl font-bold text-primary" style={{ fontFamily: 'Montserrat, sans-serif' }}>Exportar Leads</h3>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700 transition"
+            className="text-gray-500 hover:text-gray-700 transition p-2 -mr-2"
           >
             <X className="w-6 h-6" />
           </button>
         </div>
 
-        <div className="p-6">
-          <p className="text-neutral-text mb-4">Escolha o formato de exportação:</p>
-          <div className="flex gap-3">
+        <div className="p-4 sm:p-6">
+          <p className="text-neutral-text mb-4 text-sm sm:text-base">Escolha o formato de exportação:</p>
+          <div className="flex flex-col sm:flex-row gap-3">
             <button
               onClick={() => onExport('csv')}
-              className="flex-1 bg-primary text-white px-6 py-3 rounded-lg hover:bg-primary-dark transition font-bold"
+              className="flex-1 bg-primary text-white px-6 py-4 sm:py-3 rounded-lg hover:bg-primary-dark transition font-bold text-base"
               style={{ fontFamily: 'Montserrat, sans-serif' }}
             >
               Exportar CSV
             </button>
             <button
               onClick={() => onExport('json')}
-              className="flex-1 bg-secondary text-white px-6 py-3 rounded-lg hover:opacity-90 transition font-bold"
+              className="flex-1 bg-secondary text-white px-6 py-4 sm:py-3 rounded-lg hover:opacity-90 transition font-bold text-base"
               style={{ fontFamily: 'Montserrat, sans-serif' }}
             >
               Exportar JSON
@@ -2014,19 +2081,19 @@ const ImportCSVModal = ({ onClose, onImport }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b border-gray-200 flex justify-between items-center sticky top-0 bg-white" style={{ borderTop: '4px solid #1a7b60' }}>
-          <h3 className="text-2xl font-bold text-primary" style={{ fontFamily: 'Montserrat, sans-serif' }}>Importar Leads via CSV</h3>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+      <div className="bg-white rounded-t-2xl sm:rounded-lg shadow-xl max-w-2xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
+        <div className="p-4 sm:p-6 border-b border-gray-200 flex justify-between items-center sticky top-0 bg-white z-10" style={{ borderTop: '4px solid #1a7b60' }}>
+          <h3 className="text-xl sm:text-2xl font-bold text-primary" style={{ fontFamily: 'Montserrat, sans-serif' }}>Importar Leads via CSV</h3>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700 transition"
+            className="text-gray-500 hover:text-gray-700 transition p-2 -mr-2"
           >
             <X className="w-6 h-6" />
           </button>
         </div>
 
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
           <div className="mb-4">
             <p className="text-neutral-text mb-4">
               Faça upload de um arquivo CSV com os seguintes campos:
@@ -2052,7 +2119,7 @@ const ImportCSVModal = ({ onClose, onImport }) => {
               type="file"
               accept=".csv"
               onChange={handleFileUpload}
-              className="w-full px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg focus:ring-2 focus:ring-primary hover:border-primary transition"
+              className="w-full px-4 py-4 sm:py-2 h-auto border-2 border-dashed border-gray-300 rounded-lg focus:ring-2 focus:ring-primary hover:border-primary transition text-base"
             />
           </div>
 
@@ -2067,11 +2134,11 @@ const ImportCSVModal = ({ onClose, onImport }) => {
             </div>
           )}
 
-          <div className="flex gap-3">
+          <div className="flex flex-col sm:flex-row gap-3">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 bg-gray-200 text-neutral-dark px-6 py-3 rounded-lg hover:bg-gray-300 transition font-bold"
+              className="flex-1 bg-gray-200 text-neutral-dark px-6 py-4 sm:py-3 rounded-lg hover:bg-gray-300 transition font-bold text-base"
               style={{ fontFamily: 'Montserrat, sans-serif' }}
             >
               Cancelar
@@ -2079,7 +2146,7 @@ const ImportCSVModal = ({ onClose, onImport }) => {
             <button
               onClick={handleImport}
               disabled={!csvText}
-              className="flex-1 bg-primary text-white px-6 py-3 rounded-lg hover:bg-primary-dark transition font-bold disabled:bg-gray-300 disabled:cursor-not-allowed"
+              className="flex-1 bg-primary text-white px-6 py-4 sm:py-3 rounded-lg hover:bg-primary-dark transition font-bold disabled:bg-gray-300 disabled:cursor-not-allowed text-base"
               style={{ fontFamily: 'Montserrat, sans-serif' }}
             >
               Importar Leads

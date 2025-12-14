@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>CRM Alinhatta - Sistema de Gestão de Leads</title>
     
     <!-- React 18 UMD -->
@@ -15,6 +15,9 @@
     <!-- Lucide Icons -->
     <script defer src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js"></script>
     
+    <!-- Supabase JS -->
+    <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    
     <!-- Tailwind (ok pra dev; prod é outro passo) -->
     <script src="https://cdn.tailwindcss.com"></script>
     
@@ -24,15 +27,33 @@
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700;800;900&family=Open+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     
     <style>
-        body {
+        * {
+            box-sizing: border-box;
+        }
+        html, body {
             font-family: 'Open Sans', sans-serif;
             margin: 0;
             padding: 0;
+            overflow-x: hidden;
+            width: 100%;
+            max-width: 100vw;
+        }
+        #root {
+            overflow-x: hidden;
+            width: 100%;
+            max-width: 100vw;
         }
     </style>
 </head>
 <body>
     <div id="root"></div>
+    
+    <!-- Configuração Supabase -->
+    <script>
+        // Configurar chaves do Supabase
+        window.__SUPABASE_URL__ = 'https://tkqgydprypxhduhmzxgv.supabase.co';
+        window.__SUPABASE_ANON_KEY__ = 'sb_publishable_9L7Bep8qQfsOBkDdvh8qSQ_hfaIpqlL';
+    </script>
     
     <!-- Polyfill para window.storage -->
     <script>
