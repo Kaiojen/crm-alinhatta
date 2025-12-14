@@ -728,7 +728,7 @@ const CRMAlinhatta = () => {
     setShowExportModal(false);
   };
 
-  const importLeadsFromCSV = (csvData) => {
+  const importLeadsFromCSV = async (csvData) => {
     try {
       // Detectar delimitador (vírgula ou ponto e vírgula)
       const delimiter = csvData.includes(';') ? ';' : ',';
@@ -882,9 +882,14 @@ const CRMAlinhatta = () => {
         return;
       }
 
-      saveLeads([...leads, ...validLeads]);
+      // Salvar no Supabase e aguardar conclusão
+      await saveLeads([...leads, ...validLeads]);
+
+      // Recarregar leads do Supabase para garantir que apareçam na tela
+      await loadLeads();
+
       setShowImportModal(false);
-      
+
       let message = `${validLeads.length} lead(s) importado(s) com sucesso!`;
       if (duplicates.length > 0) {
         message += ` ${duplicates.length} duplicado(s) ignorado(s).`;
