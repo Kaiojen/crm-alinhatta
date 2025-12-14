@@ -275,22 +275,31 @@ const validateEmail = (email) => {
   return re.test(email);
 };
 
-// Helper do Supabase
+// Helper do Supabase - Singleton para evitar múltiplas instâncias
+let supabaseClientInstance = null;
+
 const getSupabaseClient = () => {
+  // Retornar instância existente se já foi criada
+  if (supabaseClientInstance) {
+    return supabaseClientInstance;
+  }
+
   if (typeof window === 'undefined' || !window.supabase) {
     console.error('Supabase não está disponível');
     return null;
   }
-  
+
   const supabaseUrl = window.__SUPABASE_URL__;
   const supabaseKey = window.__SUPABASE_ANON_KEY__;
-  
+
   if (!supabaseUrl || !supabaseKey) {
     console.error('Chaves do Supabase não configuradas');
     return null;
   }
-  
-  return window.supabase.createClient(supabaseUrl, supabaseKey);
+
+  // Criar apenas UMA vez e armazenar
+  supabaseClientInstance = window.supabase.createClient(supabaseUrl, supabaseKey);
+  return supabaseClientInstance;
 };
 
 // Helper para operações com leads no Supabase
@@ -406,18 +415,24 @@ const supabaseHelper = {
       if (!supabase) {
         throw new Error('Supabase não disponível');
       }
-      
-      // Para cada lead, fazer upsert (insert ou update)
-      const promises = leads.map(lead => 
-        supabase
-          .from('leads')
-          .upsert(lead, { onConflict: 'id' })
-      );
-      
-      await Promise.all(promises);
+
+      console.log(`💾 Salvando ${leads.length} leads no Supabase...`);
+
+      // Inserir todos os leads de uma vez (mais eficiente que múltiplos upserts)
+      const { data, error } = await supabase
+        .from('leads')
+        .insert(leads)
+        .select();
+
+      if (error) {
+        console.error('❌ Erro ao salvar leads:', error);
+        throw error;
+      }
+
+      console.log(`✅ ${leads.length} leads salvos com sucesso!`, data);
       return true;
     } catch (e) {
-      console.error('Erro ao salvar leads no Supabase:', e);
+      console.error('❌ Erro ao salvar leads no Supabase:', e);
       throw e;
     }
   }
@@ -494,16 +509,6 @@ const CRMAlinhatta = () => {
       setLeads([]);
     }
     setIsLoading(false);
-  };
-
-  const saveLeads = async (updatedLeads) => {
-    try {
-      await supabaseHelper.saveLeads(updatedLeads);
-      setLeads(updatedLeads);
-    } catch (error) {
-      console.error('Erro ao salvar:', error);
-      showNotification('Erro ao salvar dados. Tente novamente.', 'error');
-    }
   };
 
   const addLead = async (newLead) => {
@@ -882,8 +887,10 @@ const CRMAlinhatta = () => {
         return;
       }
 
-      // Salvar no Supabase e aguardar conclusão
-      await saveLeads([...leads, ...validLeads]);
+      console.log(`📤 Importando ${validLeads.length} leads novos...`);
+
+      // Salvar APENAS os novos leads no Supabase (não os que já existem!)
+      await supabaseHelper.saveLeads(validLeads);
 
       // Recarregar leads do Supabase para garantir que apareçam na tela
       await loadLeads();
