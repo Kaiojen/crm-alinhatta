@@ -4,26 +4,15 @@ Sistema completo de gestão de leads desenvolvido para a Alinhatta.
 
 ## 🚀 Deploy no Vercel
 
-### ⚠️ IMPORTANTE: Configuração do Root Directory
-
-**ANTES de fazer o deploy, configure o Root Directory no Vercel:**
-
-1. Acesse: https://vercel.com/dashboard
-2. Vá em **Settings** → **General** → **Root Directory**
-3. Configure como: `crm`
-4. Salve
-
-**Por quê?** O projeto está na pasta `crm/`, então o Vercel precisa saber que essa é a raiz do projeto.
-
 ### Passo a Passo do Deploy
 
 1. **Conecte o repositório no Vercel:**
    - Vercel Dashboard → **Add New Project**
    - Selecione o repositório `crm-alinhatta`
-   - Configure o **Root Directory** como `crm`
    - Framework Preset: **Other** ou **Static Site**
    - Build Command: (deixe vazio)
    - Output Directory: `.` (ponto)
+   - Root Directory: `.` (raiz do projeto)
 
 2. **Deploy automático:**
    - O Vercel fará deploy automaticamente após cada push no `main`
@@ -56,7 +45,6 @@ Sistema completo de gestão de leads desenvolvido para a Alinhatta.
 ### 🐍 Método Alternativo (Python)
 
 ```bash
-cd crm
 python server.py
 ```
 
@@ -158,7 +146,7 @@ CNPJ,Razão Social,Segmento,Score,Telefone,Email,Contato
 ## 🔧 Estrutura do Projeto
 
 ```
-crm/
+CRM Alinhatta/
 ├── index.html              # Página principal
 ├── alinhatta-crm.tsx      # Componente React principal
 ├── logo.svg               # Logo da Alinhatta
@@ -167,6 +155,8 @@ crm/
 ├── api/
 │   └── leads.js           # API Route para Vercel KV
 ├── server.py              # Servidor local (desenvolvimento)
+├── START_SERVER.bat       # Inicia servidor no Windows
+├── VERIFICAR.bat          # Verifica instalação
 └── README.md              # Este arquivo
 ```
 
@@ -175,9 +165,10 @@ crm/
 ## ⚠️ Solução de Problemas
 
 ### Erro 404 no Vercel
-- ✅ Configure o **Root Directory** como `crm` no Vercel
+- ✅ Verifique se o **Root Directory** está como `.` (raiz) no Vercel
 - ✅ Verifique se todos os arquivos estão no Git
 - ✅ Verifique os Build Logs no Vercel
+- ✅ Certifique-se que [vercel.json](vercel.json) está configurado corretamente
 
 ### Página não carrega localmente
 - ✅ Use um servidor local (não abra `index.html` diretamente)
