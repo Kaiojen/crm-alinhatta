@@ -14,7 +14,7 @@ export const Header = ({ onNewLead, searchTerm, onSearchChange }: HeaderProps) =
       <div className="max-w-7xl mx-auto px-4 py-4">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h1 className="text-2xl font-bold text-white">ALINHATTA CRM</h1>
+            <h1 className="text-2xl font-bold text-white">CRM Alinhatta</h1>
             <p className="text-sm text-gray-400">Sistema de Gestão de Leads</p>
           </div>
 
