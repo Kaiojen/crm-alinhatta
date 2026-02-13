@@ -40,3 +40,4 @@ logs/
 # Arquivos temporários
 *.tmp
 *.temp
+fase3_database_improvements.sql
