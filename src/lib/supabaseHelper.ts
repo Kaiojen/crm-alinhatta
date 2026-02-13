@@ -24,7 +24,7 @@ export const supabaseHelper = {
   addLead: async (lead: Partial<Lead>): Promise<Lead> => {
     try {
       // const { data: user } = await supabase.auth.getUser();
-      
+      console.log('Payload enviado para addLead:', lead);
       const { data, error } = await supabase
         .from('leads')
         .insert([{
@@ -48,7 +48,7 @@ export const supabaseHelper = {
   updateLead: async (id: string, updates: Partial<Lead>): Promise<Lead> => {
     try {
       // const { data: user } = await supabase.auth.getUser();
-      
+      console.log('Payload enviado para updateLead:', updates);
       const { data, error } = await supabase
         .from('leads')
         .update({
