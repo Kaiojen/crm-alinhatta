@@ -23,13 +23,13 @@ export const supabaseHelper = {
   // Adicionar novo lead
   addLead: async (lead: Partial<Lead>): Promise<Lead> => {
     try {
-      const { data: user } = await supabase.auth.getUser();
+      // const { data: user } = await supabase.auth.getUser();
       
       const { data, error } = await supabase
         .from('leads')
         .insert([{
           ...lead,
-          updated_by: user.user?.email || 'Sistema'
+          // updated_by: user.user?.email || 'Sistema'
         }])
         .select()
         .single();
@@ -47,17 +47,17 @@ export const supabaseHelper = {
   // Atualizar lead existente
   updateLead: async (id: string, updates: Partial<Lead>): Promise<Lead> => {
     try {
-      const { data: user } = await supabase.auth.getUser();
+      // const { data: user } = await supabase.auth.getUser();
       
       const { data, error } = await supabase
         .from('leads')
         .update({
           ...updates,
-          updated_by: user.user?.email || 'Sistema'
+          // updated_by: user.user?.email || 'Sistema'
         })
-        .eq('id', id)
-        .select()
-        .single();
+        .eq('id', id);
+        // .select()
+        // .single();
 
       if (error) throw error;
       toast.success('Lead atualizado com sucesso!');
@@ -92,7 +92,7 @@ export const supabaseHelper = {
     entry: Omit<HistoricoEntry, 'timestamp' | 'usuario'>
   ): Promise<void> => {
     try {
-      const { data: user } = await supabase.auth.getUser();
+      // const { data: user } = await supabase.auth.getUser();
       
       // Buscar histórico atual
       const { data: lead } = await supabase
@@ -108,7 +108,7 @@ export const supabaseHelper = {
         timestamp: new Date().toISOString(),
         tipo: entry.tipo,
         descricao: entry.descricao,
-        usuario: user.user?.email || 'Sistema',
+        usuario: 'Sistema', // user.user?.email || 'Sistema',
       };
 
       historico.push(newEntry);
@@ -118,7 +118,7 @@ export const supabaseHelper = {
         .from('leads')
         .update({ 
           historico,
-          updated_by: user.user?.email || 'Sistema'
+          // updated_by: user.user?.email || 'Sistema'
         })
         .eq('id', leadId);
 
@@ -132,11 +132,11 @@ export const supabaseHelper = {
   // Importar múltiplos leads
   importLeads: async (leads: Partial<Lead>[]): Promise<void> => {
     try {
-      const { data: user } = await supabase.auth.getUser();
+      // const { data: user } = await supabase.auth.getUser();
       
       const leadsWithUser = leads.map(lead => ({
         ...lead,
-        updated_by: user.user?.email || 'Sistema'
+        // updated_by: user.user?.email || 'Sistema'
       }));
 
       const { error } = await supabase
