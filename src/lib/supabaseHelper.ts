@@ -55,9 +55,9 @@ export const supabaseHelper = {
           ...updates,
           // updated_by: user.user?.email || 'Sistema'
         })
-        .eq('id', id);
-        // .select()
-        // .single();
+        .eq('id', id)
+        .select()
+        .single();
 
       if (error) throw error;
       toast.success('Lead atualizado com sucesso!');
