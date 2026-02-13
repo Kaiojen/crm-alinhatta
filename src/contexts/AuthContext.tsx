@@ -37,10 +37,19 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    console.log('AuthContext: Iniciando verificação de sessão...');
     // Verificar sessão atual
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) {
+        console.error('AuthContext: Erro ao buscar sessão:', error);
+      } else {
+        console.log('AuthContext: Sessão recuperada:', session ? 'Usuário logado' : 'Nenhum usuário');
+      }
       setSession(session);
       setUser(session?.user ?? null);
+      setLoading(false);
+    }).catch(err => {
+      console.error('AuthContext: Erro inesperado ao buscar sessão:', err);
       setLoading(false);
     });
 
