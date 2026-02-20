@@ -197,7 +197,7 @@ const PRIORIDADE_OPTIONS = [
 
 const PACOTES = ['Starter', 'Pro', 'Premium', 'Avulso'];
 const SEGMENTOS_INICIAIS = ['Construção', 'TI', 'Saúde', 'Serviços', 'Fornecimento', 'Médico-Hospitalar', 'Serviços Gerais'];
-const SDRS = ['Gabriel', 'Dacunha']; // Atualizar conforme SDRs contratados
+const SDRS_DEFAULT = ['Gabriel', 'Dacunha'];
 const ORIGENS_LEAD = [
   'Planilha',
   'Indicação',
@@ -482,7 +482,17 @@ const CRMAlinhatta = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
+  const [showSdrsModal, setShowSdrsModal] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [sdrs, setSdrs] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('crm_sdrs') || JSON.stringify(SDRS_DEFAULT)); }
+    catch { return SDRS_DEFAULT; }
+  });
+
+  const saveSdrs = (newSdrs) => {
+    setSdrs(newSdrs);
+    localStorage.setItem('crm_sdrs', JSON.stringify(newSdrs));
+  };
 
   // Verificar autenticação ao iniciar
   useEffect(() => {
@@ -804,15 +814,20 @@ const CRMAlinhatta = () => {
         return -1;
       };
       
-      const empresaIndex = getColumnIndex(['Razão Social', 'Razao Social', 'Empresa', 'Nome', 'Nome Fantasia']);
-      const cnpjIndex = getColumnIndex(['CNPJ', 'Cnpj', 'cnpj']);
+      const cnpjIndex = getColumnIndex(['CNPJ', 'Cnpj', 'cnpj', 'CNPJ/CPF']);
+      const empresaIndex = getColumnIndex(['Razão Social', 'Razao Social', 'Empresa', 'Nome Fantasia', 'RazaoSocial']);
       const segmentoIndex = getColumnIndex(['Segmento', 'Setor', 'Área', 'Area']);
       const scoreIndex = getColumnIndex(['Score', 'Pontuação', 'Pontuacao']);
       const rankIndex = getColumnIndex(['Rank', 'Ranking', 'Posição', 'Posicao']);
-      const telefoneIndex = getColumnIndex(['Telefone', 'Tel', 'WhatsApp', 'Whatsapp']);
-      const emailIndex = getColumnIndex(['Email', 'E-mail', 'E-mail']); // Removido 'Contato' - risco de importar nome como email
-      const contatoIndex = getColumnIndex(['Contato', 'Nome Contato', 'Responsável', 'Responsavel']);
-      const cargoIndex = getColumnIndex(['Cargo', 'Função', 'Funcao', 'Posição', 'Posicao']);
+      const telefoneIndex = getColumnIndex(['Telefone', 'Tel', 'WhatsApp', 'Whatsapp', 'Fone']);
+      const emailIndex = getColumnIndex(['Email', 'E-mail', 'e-mail']);
+      const contatoIndex = getColumnIndex(['Contato', 'Nome Contato', 'Responsável', 'Responsavel', 'Pessoa de Contato']);
+      const cargoIndex = getColumnIndex(['Cargo', 'Função', 'Funcao']);
+      const origemIndex = getColumnIndex(['Origem', 'Fonte', 'Canal']);
+      const ownerIndex = getColumnIndex(['SDR', 'Owner', 'Responsável', 'Responsavel', 'Vendedor']);
+      const pacoteIndex = getColumnIndex(['Pacote', 'Plano', 'Produto', 'Interesse']);
+      const valorIndex = getColumnIndex(['Valor', 'Valor Potencial', 'ValorPotencial', 'Ticket']);
+      const followupIndex = getColumnIndex(['Followup', 'Follow-up', 'Próximo Contato', 'Proximo Contato', 'Data Followup']);
 
       console.log(`Mapeamento de colunas:`, {
         empresa: empresaIndex >= 0 ? headers[empresaIndex] : 'NÃO ENCONTRADO',
@@ -837,15 +852,21 @@ const CRMAlinhatta = () => {
         }
 
         // Extrair dados
-        const empresa = empresaIndex !== -1 ? values[empresaIndex] : (values[0] || '');
-        const cnpj = cnpjIndex !== -1 ? values[cnpjIndex] : (values[1] || '');
-        const segmento = segmentoIndex !== -1 ? values[segmentoIndex] : (values[2] || 'Serviços Gerais');
+        const cnpj = cnpjIndex !== -1 ? values[cnpjIndex] : '';
+        // Empresa: nunca usar fallback cego para values[0] (pode ser CNPJ)
+        const empresa = empresaIndex !== -1 ? values[empresaIndex] : '';
+        const segmento = segmentoIndex !== -1 ? values[segmentoIndex] : 'Serviços Gerais';
         const scoreValue = scoreIndex !== -1 ? parseFloat(values[scoreIndex]) || 0 : 0;
         const rankValue = rankIndex !== -1 ? parseFloat(values[rankIndex]) || 0 : 0;
         const telefone = telefoneIndex !== -1 ? values[telefoneIndex] : '';
         const email = emailIndex !== -1 ? values[emailIndex] : '';
         const contato = contatoIndex !== -1 ? values[contatoIndex] : '';
         const cargo = cargoIndex !== -1 ? values[cargoIndex] : '';
+        const origemCSV = origemIndex !== -1 ? values[origemIndex] : '';
+        const ownerCSV = ownerIndex !== -1 ? values[ownerIndex] : '';
+        const pacoteCSV = pacoteIndex !== -1 ? values[pacoteIndex] : '';
+        const valorCSV = valorIndex !== -1 ? parseFloat(values[valorIndex]?.replace(/[^\d.,]/g, '').replace(',', '.')) || 0 : 0;
+        const followupCSV = followupIndex !== -1 ? values[followupIndex] : '';
         
         // Determinar prioridade baseado no score (escala 0-15) ou Rank (fallback)
         // Se Score for 0/vazio, usa Rank: top 10 = ALTA, 11-30 = MÉDIA, resto = BAIXA
@@ -887,11 +908,11 @@ const CRMAlinhatta = () => {
           email: email || '',
           prioridade: prioridade,
           status: 'NOVO',
-          owner: 'Não atribuído', // C3: valor padrão para NOT NULL — atualizar manualmente via edição após importação
-          origem: 'Planilha', // Origem padrão para imports CSV
-          pacoteInteresse: '',
-          valorpotencial: 0,
-          proximoFollowup: '',
+          owner: ownerCSV || 'Não atribuído',
+          origem: origemCSV || 'Planilha',
+          pacoteInteresse: pacoteCSV || '',
+          valorpotencial: valorCSV || 0,
+          proximoFollowup: followupCSV || '',
           tentativas: 0,
           dataentrada: formatDate(),
           historico: [{
@@ -1103,6 +1124,14 @@ const CRMAlinhatta = () => {
                 Dashboard
               </button>
               <button
+                onClick={() => setShowSdrsModal(true)}
+                className="px-3 sm:px-4 py-3 sm:py-2 rounded-lg font-medium transition text-sm sm:text-base bg-primary-dark/50 text-white hover:bg-primary-dark"
+                style={{ fontFamily: 'Montserrat, sans-serif' }}
+                title="Gerenciar SDRs"
+              >
+                ⚙️ SDRs
+              </button>
+              <button
                 onClick={handleLogout}
                 className="px-3 sm:px-4 py-3 sm:py-2 rounded-lg font-medium transition text-sm sm:text-base bg-red-600 text-white hover:bg-red-700"
                 style={{ fontFamily: 'Montserrat, sans-serif' }}
@@ -1142,6 +1171,7 @@ const CRMAlinhatta = () => {
             onExportLeads={() => setShowExportModal(true)}
             metrics={metrics}
             segmentos={SEGMENTOS}
+            sdrs={sdrs}
           />
         )}
 
@@ -1153,11 +1183,12 @@ const CRMAlinhatta = () => {
             onAddInteracao={addInteracao}
             onDelete={deleteLead}
             formatCNPJ={formatCNPJ}
+            sdrs={sdrs}
           />
         )}
 
         {view === 'dashboard' && (
-          <DashboardView leads={leads} metrics={metrics} segmentos={SEGMENTOS} />
+          <DashboardView leads={leads} metrics={metrics} segmentos={SEGMENTOS} sdrs={sdrs} />
         )}
       </main>
 
@@ -1167,6 +1198,7 @@ const CRMAlinhatta = () => {
           onClose={() => setShowAddModal(false)}
           onAdd={addLead}
           segmentos={SEGMENTOS}
+          sdrs={sdrs}
         />
       )}
 
@@ -1186,11 +1218,20 @@ const CRMAlinhatta = () => {
           onExport={exportLeads}
         />
       )}
+
+      {/* Manage SDRs Modal */}
+      {showSdrsModal && (
+        <ManageSdrsModal
+          sdrs={sdrs}
+          onSave={saveSdrs}
+          onClose={() => setShowSdrsModal(false)}
+        />
+      )}
     </div>
   );
 };
 
-const PipelineView = ({ leads, searchTerm, setSearchTerm, filterStatus, setFilterStatus, filterPrioridade, setFilterPrioridade, filterSegmento, setFilterSegmento, filterOwner, setFilterOwner, filterOrigem, setFilterOrigem, sortBy, setSortBy, sortOrder, setSortOrder, onSelectLead, onAddLead, onImportLeads, onExportLeads, metrics, segmentos }) => {
+const PipelineView = ({ leads, searchTerm, setSearchTerm, filterStatus, setFilterStatus, filterPrioridade, setFilterPrioridade, filterSegmento, setFilterSegmento, filterOwner, setFilterOwner, filterOrigem, setFilterOrigem, sortBy, setSortBy, sortOrder, setSortOrder, onSelectLead, onAddLead, onImportLeads, onExportLeads, metrics, segmentos, sdrs }) => {
   const followupsHoje = leads.filter(l => l.proximoFollowup === formatDate());
   const followupsAtrasados = leads.filter(l => l.proximoFollowup && l.proximoFollowup < formatDate());
 
@@ -1342,7 +1383,7 @@ const PipelineView = ({ leads, searchTerm, setSearchTerm, filterStatus, setFilte
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-primary focus:border-primary bg-white hover:border-gray-400 transition"
               >
                 <option value="TODOS">Todos</option>
-                {SDRS.map(sdr => (
+                {sdrs.map(sdr => (
                   <option key={sdr} value={sdr}>{sdr}</option>
                 ))}
               </select>
@@ -1495,7 +1536,7 @@ const LeadCard = ({ lead, onClick }) => {
   );
 };
 
-const LeadDetailView = ({ lead, onBack, onUpdate, onAddInteracao, formatCNPJ }) => {
+const LeadDetailView = ({ lead, onBack, onUpdate, onAddInteracao, onDelete, formatCNPJ, sdrs }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editedLead, setEditedLead] = useState(lead);
   const [novaInteracao, setNovaInteracao] = useState('');
@@ -1548,7 +1589,7 @@ const LeadDetailView = ({ lead, onBack, onUpdate, onAddInteracao, formatCNPJ }) 
         </div>
 
         {isEditing ? (
-          <EditLeadForm lead={editedLead} onChange={setEditedLead} onSave={handleSave} isSaving={isSaving} />
+          <EditLeadForm lead={editedLead} onChange={setEditedLead} onSave={handleSave} isSaving={isSaving} sdrs={sdrs} />
         ) : (
           <ViewLeadDetails lead={lead} />
         )}
@@ -1646,7 +1687,7 @@ const DetailField = ({ label, value, icon = null }) => (
   </div>
 );
 
-const EditLeadForm = ({ lead, onChange, onSave, isSaving }) => (
+const EditLeadForm = ({ lead, onChange, onSave, isSaving, sdrs }) => (
   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
     <div>
       <label className="block text-sm font-medium text-gray-300 mb-1">
@@ -1659,7 +1700,7 @@ const EditLeadForm = ({ lead, onChange, onSave, isSaving }) => (
         className="w-full px-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-base"
       >
         <option value="">Selecione um SDR...</option>
-        {SDRS.map(sdr => (
+        {sdrs.map(sdr => (
           <option key={sdr} value={sdr}>{sdr}</option>
         ))}
       </select>
@@ -1816,7 +1857,7 @@ const EditLeadForm = ({ lead, onChange, onSave, isSaving }) => (
   </div>
 );
 
-const DashboardView = ({ leads, metrics, segmentos }) => {
+const DashboardView = ({ leads, metrics, segmentos, sdrs }) => {
   const statusDistribution = STATUS_OPTIONS.map(status => ({
     label: status.label,
     count: leads.filter(l => l.status === status.value).length,
@@ -1828,7 +1869,7 @@ const DashboardView = ({ leads, metrics, segmentos }) => {
     count: leads.filter(l => l.segmento === seg).length
   })).filter(s => s.count > 0);
 
-  const ownerDistribution = SDRS.map(sdr => ({
+  const ownerDistribution = sdrs.map(sdr => ({
     label: sdr,
     count: leads.filter(l => l.owner === sdr).length
   })).filter(s => s.count > 0);
@@ -2014,7 +2055,7 @@ const MetricCard = ({ title, value, icon, subtitle = '', color = "text-gray-200"
   </div>
 );
 
-const AddLeadModal = ({ onClose, onAdd, segmentos }) => {
+const AddLeadModal = ({ onClose, onAdd, segmentos, sdrs }) => {
   const [formData, setFormData] = useState({
     empresa: '',
     cnpj: '',
@@ -2107,7 +2148,7 @@ const AddLeadModal = ({ onClose, onAdd, segmentos }) => {
                 className="w-full px-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-base"
               >
                 <option value="">Selecione um SDR...</option>
-                {SDRS.map(sdr => (
+                {sdrs.map(sdr => (
                   <option key={sdr} value={sdr}>{sdr}</option>
                 ))}
               </select>
@@ -2396,6 +2437,83 @@ const ImportCSVModal = ({ onClose, onImport }) => {
               Importar Leads
             </button>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const ManageSdrsModal = ({ sdrs, onSave, onClose }) => {
+  const [list, setList] = useState([...sdrs]);
+  const [newName, setNewName] = useState('');
+
+  const handleAdd = () => {
+    const trimmed = newName.trim();
+    if (trimmed && !list.includes(trimmed)) {
+      setList([...list, trimmed]);
+      setNewName('');
+    }
+  };
+
+  const handleRemove = (name) => {
+    if (list.length > 1) setList(list.filter(s => s !== name));
+  };
+
+  const handleSave = () => {
+    onSave(list);
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md" style={{ borderTop: '4px solid #1a7b60' }}>
+        <div className="p-5 border-b border-gray-200 flex justify-between items-center">
+          <h3 className="text-xl font-bold text-primary" style={{ fontFamily: 'Montserrat, sans-serif' }}>Gerenciar SDRs</h3>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700 p-1"><X className="w-5 h-5" /></button>
+        </div>
+        <div className="p-5 space-y-4">
+          <ul className="space-y-2">
+            {list.map(sdr => (
+              <li key={sdr} className="flex items-center justify-between bg-gray-50 px-4 py-2 rounded-lg border border-gray-200">
+                <span className="font-medium text-gray-800">{sdr}</span>
+                <button
+                  onClick={() => handleRemove(sdr)}
+                  disabled={list.length <= 1}
+                  className="text-red-400 hover:text-red-600 disabled:opacity-30 disabled:cursor-not-allowed transition"
+                  title="Remover"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </li>
+            ))}
+          </ul>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+              placeholder="Nome do SDR"
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
+            />
+            <button
+              onClick={handleAdd}
+              disabled={!newName.trim()}
+              className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-dark disabled:opacity-40 disabled:cursor-not-allowed transition"
+            >
+              Adicionar
+            </button>
+          </div>
+        </div>
+        <div className="p-5 border-t border-gray-200 flex gap-3">
+          <button onClick={onClose} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition">Cancelar</button>
+          <button
+            onClick={handleSave}
+            className="flex-1 px-4 py-2 bg-primary text-white rounded-lg text-sm font-bold hover:bg-primary-dark transition"
+            style={{ fontFamily: 'Montserrat, sans-serif' }}
+          >
+            Salvar
+          </button>
         </div>
       </div>
     </div>
