@@ -358,10 +358,16 @@ const supabaseHelper = {
       if (!supabase) {
         throw new Error('Supabase não disponível');
       }
-      
+
+      // Filtrar apenas colunas válidas + id
+      const insertData = { id: lead.id };
+      supabaseHelper.LEAD_COLUMNS.forEach(col => {
+        if (lead[col] !== undefined) insertData[col] = lead[col];
+      });
+
       const { data, error } = await supabase
         .from('leads')
-        .insert([lead])
+        .insert([insertData])
         .select()
         .single();
       
@@ -377,6 +383,15 @@ const supabaseHelper = {
     }
   },
   
+  // Colunas válidas na tabela leads do Supabase (whitelist)
+  // Campos extras do JS (ultimaInteracao, notaUltimaInteracao, etc) são filtrados
+  LEAD_COLUMNS: [
+    'cnpj', 'empresa', 'segmento', 'contato', 'cargo', 'telefone', 'email',
+    'prioridade', 'status', 'score', 'owner', 'origem', 'pacoteInteresse',
+    'valorpotencial', 'proximoFollowup', 'tentativas', 'dataentrada',
+    'historico', 'observacoes', 'ficha_diagnostica', 'updated_by'
+  ],
+
   // Atualizar um lead existente
   updateLead: async (lead) => {
     try {
@@ -384,14 +399,19 @@ const supabaseHelper = {
       if (!supabase) {
         throw new Error('Supabase não disponível');
       }
-      
-      // Remover campos gerenciados automaticamente pelo Supabase para evitar erro 400
-      const { id, created_at, updated_at, ...updateData } = lead;
+
+      // Enviar APENAS colunas que existem no Supabase (evita erro 400)
+      const updateData = {};
+      supabaseHelper.LEAD_COLUMNS.forEach(col => {
+        if (lead[col] !== undefined) updateData[col] = lead[col];
+      });
+
+      console.log('Atualizando lead:', lead.id, 'Campos enviados:', Object.keys(updateData));
 
       const { data, error } = await supabase
         .from('leads')
         .update(updateData)
-        .eq('id', id)
+        .eq('id', lead.id)
         .select()
         .single();
       
@@ -442,10 +462,18 @@ const supabaseHelper = {
 
       console.log(`Salvando ${leads.length} leads no Supabase...`);
 
-      // Inserir todos os leads de uma vez (mais eficiente que múltiplos upserts)
+      // Filtrar apenas colunas válidas do Supabase
+      const filteredLeads = leads.map(lead => {
+        const filtered = { id: lead.id };
+        supabaseHelper.LEAD_COLUMNS.forEach(col => {
+          if (lead[col] !== undefined) filtered[col] = lead[col];
+        });
+        return filtered;
+      });
+
       const { data, error } = await supabase
         .from('leads')
-        .insert(leads)
+        .insert(filteredLeads)
         .select();
 
       if (error) {
