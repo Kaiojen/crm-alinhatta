@@ -489,9 +489,35 @@ const CRMAlinhatta = () => {
     catch { return SDRS_DEFAULT; }
   });
 
-  const saveSdrs = (newSdrs) => {
+  // Carregar SDRs do Supabase após login (sobrescreve localStorage)
+  useEffect(() => {
+    const loadSdrsFromSupabase = async () => {
+      const supabase = getSupabaseClient();
+      if (!supabase) return;
+      try {
+        const { data, error } = await supabase
+          .from('settings')
+          .select('value')
+          .eq('key', 'sdrs')
+          .single();
+        if (!error && Array.isArray(data?.value) && data.value.length > 0) {
+          setSdrs(data.value);
+          localStorage.setItem('crm_sdrs', JSON.stringify(data.value));
+        }
+      } catch (e) { /* mantém o localStorage como fallback */ }
+    };
+    loadSdrsFromSupabase();
+  }, []);
+
+  const saveSdrs = async (newSdrs) => {
     setSdrs(newSdrs);
     localStorage.setItem('crm_sdrs', JSON.stringify(newSdrs));
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      await supabase
+        .from('settings')
+        .upsert({ key: 'sdrs', value: newSdrs, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+    }
   };
 
   // Verificar autenticação ao iniciar
@@ -1574,7 +1600,7 @@ const LeadDetailView = ({ lead, onBack, onUpdate, onAddInteracao, onDelete, form
       <div className="rounded-lg shadow-lg p-4 sm:p-6" style={{ backgroundColor: '#1e252b' }}>
         <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-6">
           <div className="flex-1 w-full">
-            <h2 className="text-2xl sm:text-3xl font-bold text-gray-200 mb-2 break-words">{lead.empresa}</h2>
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-200 mb-2 break-words">{isEditing ? (editedLead.empresa || lead.empresa) : lead.empresa}</h2>
             <p className="text-gray-300 text-sm sm:text-base break-all">CNPJ: {formatCNPJ(lead.cnpj)}</p>
             <p className="text-gray-300 text-sm sm:text-base">{lead.segmento}</p>
           </div>
@@ -1689,6 +1715,18 @@ const DetailField = ({ label, value, icon = null }) => (
 
 const EditLeadForm = ({ lead, onChange, onSave, isSaving, sdrs }) => (
   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <div className="sm:col-span-2">
+      <label className="block text-sm font-medium text-gray-300 mb-1">
+        Nome da Empresa (Razão Social)
+      </label>
+      <input
+        type="text"
+        value={lead.empresa || ''}
+        onChange={(e) => onChange({ ...lead, empresa: e.target.value })}
+        placeholder="Razão Social da empresa"
+        className="w-full px-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-base"
+      />
+    </div>
     <div>
       <label className="block text-sm font-medium text-gray-300 mb-1">
         SDR Responsável <span className="text-red-500">*</span>
