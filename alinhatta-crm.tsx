@@ -385,10 +385,13 @@ const supabaseHelper = {
         throw new Error('Supabase não disponível');
       }
       
+      // Remover campos gerenciados automaticamente pelo Supabase para evitar erro 400
+      const { id, created_at, updated_at, ...updateData } = lead;
+
       const { data, error } = await supabase
         .from('leads')
-        .update(lead)
-        .eq('id', lead.id)
+        .update(updateData)
+        .eq('id', id)
         .select()
         .single();
       

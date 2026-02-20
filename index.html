@@ -255,10 +255,13 @@
         // Aguardar o carregamento e processamento do componente pelo Babel
         let attempts = 0;
         const maxAttempts = 100; // 10 segundos no total
-        
+        let rootCreated = false; // Evitar createRoot() duplicado
+
         function initApp() {
             attempts++;
-            
+
+            if (rootCreated) return; // Guard: só renderizar uma vez
+
             if (typeof window.CRMAlinhatta !== 'undefined') {
                 try {
                     // Verificar se é uma função/componente válido
@@ -266,7 +269,8 @@
                         console.error('CRMAlinhatta não é uma função:', typeof window.CRMAlinhatta, window.CRMAlinhatta);
                         throw new Error('CRMAlinhatta deve ser uma função/componente React');
                     }
-                    
+
+                    rootCreated = true;
                     const root = ReactDOM.createRoot(document.getElementById('root'));
                     root.render(React.createElement(window.CRMAlinhatta));
                 } catch (error) {
