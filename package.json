@@ -1,0 +1,20 @@
+{
+  "name": "crm-alinhatta",
+  "version": "1.0.0",
+  "description": "CRM Alinhatta - Sistema de Gestão de Leads",
+  "main": "index.html",
+  "scripts": {
+    "dev": "python server.py"
+  },
+  "dependencies": {
+    "@vercel/kv": "^0.2.0"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.22",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.18"
+  },
+  "keywords": ["crm", "leads", "alinhatta"],
+  "author": "",
+  "license": "ISC"
+}

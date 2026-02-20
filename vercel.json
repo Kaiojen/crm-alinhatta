@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "buildCommand": "",
+  "framework": null,
+  "outputDirectory": ".",
+  "rewrites": [
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
+  ]
+}
+
