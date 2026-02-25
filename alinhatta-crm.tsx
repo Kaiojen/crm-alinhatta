@@ -1596,6 +1596,14 @@ const LeadDetailView = ({ lead, onBack, onUpdate, onAddInteracao, onDelete, form
   const [novaInteracao, setNovaInteracao] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
+  // Sincronizar editedLead quando lead prop mudar (após save ou navegação)
+  // Só sincroniza se não estiver editando para não sobrescrever edição em curso
+  useEffect(() => {
+    if (!isEditing) {
+      setEditedLead(lead);
+    }
+  }, [lead]);
+
   const handleSave = async () => {
     setIsSaving(true);
     try {
@@ -1632,14 +1640,47 @@ const LeadDetailView = ({ lead, onBack, onUpdate, onAddInteracao, onDelete, form
             <p className="text-gray-300 text-sm sm:text-base break-all">CNPJ: {formatCNPJ(lead.cnpj)}</p>
             <p className="text-gray-300 text-sm sm:text-base">{lead.segmento}</p>
           </div>
-          <button
-            onClick={() => setIsEditing(!isEditing)}
-            className="bg-primary text-white px-4 py-3 sm:py-2 rounded-lg hover:bg-primary-dark transition flex items-center justify-center gap-2 w-full sm:w-auto text-base"
-            style={{ fontFamily: 'Montserrat, sans-serif' }}
-          >
-            {isEditing ? <Save className="w-4 h-4" /> : <Edit2 className="w-4 h-4" />}
-            {isEditing ? 'Salvar' : 'Editar'}
-          </button>
+          <div className="flex gap-2 w-full sm:w-auto">
+            {isEditing ? (
+              <>
+                <button
+                  onClick={() => { setEditedLead(lead); setIsEditing(false); }}
+                  className="flex-1 sm:flex-none border border-gray-600 text-gray-300 px-4 py-3 sm:py-2 rounded-lg hover:bg-gray-700 transition text-base"
+                  style={{ fontFamily: 'Montserrat, sans-serif' }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleSave}
+                  disabled={isSaving}
+                  className="flex-1 sm:flex-none bg-primary text-white px-4 py-3 sm:py-2 rounded-lg hover:bg-primary-dark transition flex items-center justify-center gap-2 text-base disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ fontFamily: 'Montserrat, sans-serif' }}
+                >
+                  <Save className="w-4 h-4" />
+                  {isSaving ? 'Salvando...' : 'Salvar'}
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => onDelete(lead.id)}
+                  className="flex-1 sm:flex-none border border-red-700 text-red-400 px-4 py-3 sm:py-2 rounded-lg hover:bg-red-900/30 transition flex items-center justify-center gap-2 text-base"
+                  style={{ fontFamily: 'Montserrat, sans-serif' }}
+                >
+                  <X className="w-4 h-4" />
+                  Excluir
+                </button>
+                <button
+                  onClick={() => setIsEditing(true)}
+                  className="flex-1 sm:flex-none bg-primary text-white px-4 py-3 sm:py-2 rounded-lg hover:bg-primary-dark transition flex items-center justify-center gap-2 text-base"
+                  style={{ fontFamily: 'Montserrat, sans-serif' }}
+                >
+                  <Edit2 className="w-4 h-4" />
+                  Editar
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
         {isEditing ? (
@@ -1691,6 +1732,22 @@ const LeadDetailView = ({ lead, onBack, onUpdate, onAddInteracao, onDelete, form
   );
 };
 
+// Componente reutilizável para textos longos com "Ler mais / Ler menos"
+const ExpandableText = ({ text, maxChars = 200 }) => {
+  const [expanded, setExpanded] = useState(false);
+  if (!text) return null;
+  if (text.length <= maxChars) return React.createElement(React.Fragment, null, text);
+  return React.createElement(React.Fragment, null,
+    expanded ? text : text.slice(0, maxChars) + '…',
+    ' ',
+    React.createElement('button', {
+      onClick: () => setExpanded(!expanded),
+      className: 'text-primary hover:underline text-sm font-medium ml-1',
+      style: { fontFamily: 'Montserrat, sans-serif' }
+    }, expanded ? 'Ler menos' : 'Ler mais')
+  );
+};
+
 const ViewLeadDetails = ({ lead }) => {
   const status = STATUS_OPTIONS.find(s => s.value === lead.status);
   const prioridade = PRIORIDADE_OPTIONS.find(p => p.value === lead.prioridade);
@@ -1718,7 +1775,9 @@ const ViewLeadDetails = ({ lead }) => {
               <Clipboard className="w-4 h-4" />
               <strong>Ficha Diagnóstica</strong>
             </p>
-            <p className="text-gray-200 whitespace-pre-wrap">{lead.ficha_diagnostica}</p>
+            <p className="text-gray-200 whitespace-pre-wrap">
+              <ExpandableText text={lead.ficha_diagnostica} maxChars={200} />
+            </p>
           </div>
         </div>
       )}

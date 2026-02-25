@@ -87,6 +87,10 @@ DROP POLICY IF EXISTS "Autenticados podem ler leads"      ON public.leads;
 DROP POLICY IF EXISTS "Autenticados podem inserir leads"  ON public.leads;
 DROP POLICY IF EXISTS "Autenticados podem atualizar leads" ON public.leads;
 DROP POLICY IF EXISTS "Autenticados podem deletar leads"  ON public.leads;
+DROP POLICY IF EXISTS "leads_select" ON public.leads;
+DROP POLICY IF EXISTS "leads_insert" ON public.leads;
+DROP POLICY IF EXISTS "leads_update" ON public.leads;
+DROP POLICY IF EXISTS "leads_delete" ON public.leads;
 
 CREATE POLICY "leads_select" ON public.leads FOR SELECT TO authenticated USING (true);
 CREATE POLICY "leads_insert" ON public.leads FOR INSERT TO authenticated WITH CHECK (true);
@@ -128,9 +132,22 @@ ALTER TABLE public.lead_history ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "history_select" ON public.lead_history;
 DROP POLICY IF EXISTS "history_insert" ON public.lead_history;
+DROP POLICY IF EXISTS "history_delete" ON public.lead_history;
 
 CREATE POLICY "history_select" ON public.lead_history FOR SELECT TO authenticated USING (true);
 CREATE POLICY "history_insert" ON public.lead_history FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "history_delete" ON public.lead_history FOR DELETE TO authenticated USING (true);
+
+-- ============================================================
+-- FK CASCADE: garantir que deletar lead apague seu histórico
+-- (necessário se a tabela foi criada antes sem ON DELETE CASCADE)
+-- ============================================================
+ALTER TABLE public.lead_history
+  DROP CONSTRAINT IF EXISTS lead_history_lead_id_fkey;
+
+ALTER TABLE public.lead_history
+  ADD CONSTRAINT lead_history_lead_id_fkey
+    FOREIGN KEY (lead_id) REFERENCES public.leads(id) ON DELETE CASCADE;
 
 -- ============================================================
 -- 8. CONFIRMAR USUÁRIOS (para login funcionar)
