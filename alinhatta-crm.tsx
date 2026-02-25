@@ -427,7 +427,7 @@ const supabaseHelper = {
     }
   },
   
-  // Deletar um lead (remove histórico primeiro para evitar FK constraint)
+  // Deletar lead via função server-side (SECURITY DEFINER bypassa RLS)
   deleteLead: async (leadId) => {
     try {
       const supabase = getSupabaseClient();
@@ -435,22 +435,9 @@ const supabaseHelper = {
         throw new Error('Supabase não disponível');
       }
 
-      // 1. Deletar registros dependentes em lead_history
-      const { error: historyError } = await supabase
-        .from('lead_history')
-        .delete()
-        .eq('lead_id', leadId);
-
-      if (historyError) {
-        console.warn('Aviso ao deletar histórico:', historyError);
-        // Continua mesmo se não houver histórico (tabela pode não existir)
-      }
-
-      // 2. Deletar o lead
-      const { error } = await supabase
-        .from('leads')
-        .delete()
-        .eq('id', leadId);
+      const { error } = await supabase.rpc('delete_lead_cascade', {
+        p_lead_id: leadId
+      });
 
       if (error) {
         console.error('Erro ao deletar lead:', error);

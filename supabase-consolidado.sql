@@ -170,6 +170,20 @@ ALTER TABLE public.lead_history
     FOREIGN KEY (lead_id) REFERENCES public.leads(id) ON DELETE CASCADE;
 
 -- ============================================================
+-- FUNÇÃO: deletar lead com cascade (server-side, bypassa RLS)
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.delete_lead_cascade(p_lead_id TEXT)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  DELETE FROM public.lead_history WHERE lead_id = p_lead_id;
+  DELETE FROM public.leads WHERE id = p_lead_id;
+END;
+$$;
+
+-- ============================================================
 -- 8. CONFIRMAR USUÁRIOS (para login funcionar)
 -- ============================================================
 UPDATE auth.users
