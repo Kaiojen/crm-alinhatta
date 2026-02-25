@@ -427,24 +427,36 @@ const supabaseHelper = {
     }
   },
   
-  // Deletar um lead
+  // Deletar um lead (remove histórico primeiro para evitar FK constraint)
   deleteLead: async (leadId) => {
     try {
       const supabase = getSupabaseClient();
       if (!supabase) {
         throw new Error('Supabase não disponível');
       }
-      
+
+      // 1. Deletar registros dependentes em lead_history
+      const { error: historyError } = await supabase
+        .from('lead_history')
+        .delete()
+        .eq('lead_id', leadId);
+
+      if (historyError) {
+        console.warn('Aviso ao deletar histórico:', historyError);
+        // Continua mesmo se não houver histórico (tabela pode não existir)
+      }
+
+      // 2. Deletar o lead
       const { error } = await supabase
         .from('leads')
         .delete()
         .eq('id', leadId);
-      
+
       if (error) {
         console.error('Erro ao deletar lead:', error);
         throw error;
       }
-      
+
       return true;
     } catch (e) {
       console.error('Erro ao deletar lead no Supabase:', e);

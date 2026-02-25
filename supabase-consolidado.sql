@@ -140,11 +140,31 @@ CREATE POLICY "history_delete" ON public.lead_history FOR DELETE TO authenticate
 
 -- ============================================================
 -- FK CASCADE: garantir que deletar lead apague seu histórico
--- (necessário se a tabela foi criada antes sem ON DELETE CASCADE)
 -- ============================================================
-ALTER TABLE public.lead_history
-  DROP CONSTRAINT IF EXISTS lead_history_lead_id_fkey;
 
+-- Limpar registros órfãos que impedem a criação do FK
+DELETE FROM public.lead_history
+  WHERE lead_id IS NOT NULL
+    AND lead_id NOT IN (SELECT id FROM public.leads);
+
+-- Dropar QUALQUER FK existente sobre lead_id (nome pode variar)
+DO $$
+DECLARE r RECORD;
+BEGIN
+  FOR r IN (
+    SELECT con.conname
+    FROM pg_constraint con
+    JOIN pg_class rel ON rel.oid = con.conrelid
+    JOIN pg_namespace nsp ON nsp.oid = rel.relnamespace
+    WHERE rel.relname = 'lead_history'
+      AND nsp.nspname = 'public'
+      AND con.contype = 'f'
+  ) LOOP
+    EXECUTE 'ALTER TABLE public.lead_history DROP CONSTRAINT ' || quote_ident(r.conname);
+  END LOOP;
+END $$;
+
+-- Recriar com ON DELETE CASCADE
 ALTER TABLE public.lead_history
   ADD CONSTRAINT lead_history_lead_id_fkey
     FOREIGN KEY (lead_id) REFERENCES public.leads(id) ON DELETE CASCADE;
