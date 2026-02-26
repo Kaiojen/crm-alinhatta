@@ -881,6 +881,12 @@ const CRMAlinhatta = () => {
       const pacoteIndex = getColumnIndex(['Pacote', 'Plano', 'Produto', 'Interesse']);
       const valorIndex = getColumnIndex(['Valor', 'Valor Potencial', 'ValorPotencial', 'Ticket']);
       const followupIndex = getColumnIndex(['Followup', 'Follow-up', 'Próximo Contato', 'Proximo Contato', 'Data Followup']);
+      const statusCSVIndex = getColumnIndex(['status', 'Status']);
+      const prioridadeCSVIndex = getColumnIndex(['prioridade', 'Prioridade']);
+      const dataEntradaIndex = getColumnIndex(['Data Entrada', 'DataEntrada', 'data_entrada']);
+      const ultimaInteracaoIndex = getColumnIndex(['Ultima Interacao', 'UltimaInteracao', 'ultima_interacao', 'Última Interação', 'Ultima Interação']);
+      const tentativasCSVIndex = getColumnIndex(['tentativas', 'Tentativas']);
+      const fichaDiagnosticaIndex = getColumnIndex(['ficha_diagnostica', 'Ficha Diagnostica', 'Ficha Diagnóstica']);
 
       console.log(`Mapeamento de colunas:`, {
         empresa: empresaIndex >= 0 ? headers[empresaIndex] : 'NÃO ENCONTRADO',
@@ -898,12 +904,6 @@ const CRMAlinhatta = () => {
 
         const values = parseCSVLine(lines[i]).map(v => v.replace(/^"|"$/g, '').trim());
 
-        // Log primeira linha para debug
-        if (i === 1) {
-          console.log(`Exemplo de linha parseada (primeira linha):`, values);
-          console.log(`   Total de campos: ${values.length}`);
-        }
-
         // Extrair dados
         const cnpj = cnpjIndex !== -1 ? values[cnpjIndex] : '';
         // Empresa: nunca usar fallback cego para values[0] (pode ser CNPJ)
@@ -920,7 +920,13 @@ const CRMAlinhatta = () => {
         const pacoteCSV = pacoteIndex !== -1 ? values[pacoteIndex] : '';
         const valorCSV = valorIndex !== -1 ? parseFloat(values[valorIndex]?.replace(/[^\d.,]/g, '').replace(',', '.')) || 0 : 0;
         const followupCSV = followupIndex !== -1 ? values[followupIndex] : '';
-        
+        const statusCSV = statusCSVIndex !== -1 ? values[statusCSVIndex] : '';
+        const prioridadeCSV = prioridadeCSVIndex !== -1 ? values[prioridadeCSVIndex] : '';
+        const dataEntradaCSV = dataEntradaIndex !== -1 ? values[dataEntradaIndex] : '';
+        const ultimaInteracaoCSV = ultimaInteracaoIndex !== -1 ? values[ultimaInteracaoIndex] : '';
+        const tentativasCSV = tentativasCSVIndex !== -1 ? parseInt(values[tentativasCSVIndex]) || 0 : 0;
+        const fichaDiagnosticaCSV = fichaDiagnosticaIndex !== -1 ? values[fichaDiagnosticaIndex] : '';
+
         // Determinar prioridade baseado no score (escala 0-15) ou Rank (fallback)
         // Se Score for 0/vazio, usa Rank: top 10 = ALTA, 11-30 = MÉDIA, resto = BAIXA
         let prioridade = 'MEDIA';
@@ -943,13 +949,25 @@ const CRMAlinhatta = () => {
             prioridade = 'BAIXA';
           }
         }
-        
+        // Se o CSV já traz prioridade explícita (ALTA/MEDIA/BAIXA), ela tem precedência
+        if (['ALTA', 'MEDIA', 'BAIXA'].includes(prioridadeCSV?.toUpperCase())) {
+          prioridade = prioridadeCSV.toUpperCase();
+        }
+
         // Validar dados obrigatórios
         if (!empresa || !cnpj) {
           skipped++;
           continue;
         }
         
+        // Mapear status do CSV para valores válidos do CRM
+        const STATUS_VALIDOS = {
+          'NOVO': 'NOVO', 'EM_CONTATO': 'CONTATO_INICIAL', 'CONTATO_INICIAL': 'CONTATO_INICIAL',
+          'QUALIFICADO': 'QUALIFICADO', 'PROPOSTA_ENVIADA': 'PROPOSTA_ENVIADA',
+          'GANHO': 'GANHO', 'PERDIDO': 'PERDIDO', 'DIAGNOSTICO_AGENDADO': 'DIAGNOSTICO_AGENDADO'
+        };
+        const statusFinal = STATUS_VALIDOS[statusCSV?.toUpperCase()] || 'NOVO';
+
         const lead = {
           id: Date.now().toString() + '-' + i,
           empresa: empresa,
@@ -960,17 +978,19 @@ const CRMAlinhatta = () => {
           telefone: telefone || '',
           email: email || '',
           prioridade: prioridade,
-          status: 'NOVO',
+          status: statusFinal,
           owner: ownerCSV || 'Não atribuído',
           origem: origemCSV || 'Planilha',
           pacoteInteresse: pacoteCSV || '',
           valorpotencial: valorCSV || 0,
           proximoFollowup: followupCSV || '',
-          tentativas: 0,
-          dataentrada: formatDate(),
+          tentativas: tentativasCSV,
+          dataentrada: dataEntradaCSV || formatDate(),
+          ultimaInteracao: ultimaInteracaoCSV || '',
+          ficha_diagnostica: fichaDiagnosticaCSV || '',
           historico: [{
             data: formatDate(),
-            nota: `Lead importado via CSV${scoreValue > 0 ? ` (Score: ${scoreValue})` : ''}`
+            nota: `Lead importado via CSV${scoreValue > 0 ? ` (Score: ${scoreValue})` : ''}${tentativasCSV > 0 ? ` | ${tentativasCSV} tentativa(s) registradas` : ''}`
           }]
         };
         
