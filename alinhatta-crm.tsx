@@ -180,20 +180,40 @@ if (typeof document !== 'undefined') {
 }
 
 const STATUS_OPTIONS = [
-  { value: 'NOVO', label: 'Novo', color: 'bg-blue-900/30 text-blue-300 border-blue-600' },
-  { value: 'CONTATO_INICIAL', label: 'Contato Inicial', color: 'bg-yellow-900/30 text-yellow-300 border-yellow-600' },
-  { value: 'DIAGNOSTICO_AGENDADO', label: 'Diagnóstico Agendado', color: 'bg-purple-900/30 text-purple-300 border-purple-600' },
-  { value: 'QUALIFICADO', label: 'Qualificado', color: 'bg-green-900/30 text-green-300 border-green-600' },
-  { value: 'PROPOSTA_ENVIADA', label: 'Proposta Enviada', color: 'bg-orange-900/30 text-orange-300 border-orange-600' },
-  { value: 'GANHO', label: 'Ganho', color: 'bg-emerald-900/30 text-emerald-300 border-emerald-600' },
-  { value: 'PERDIDO', label: 'Perdido', color: 'bg-red-900/30 text-red-300 border-red-600' }
+  { value: 'NOVO',                 label: 'Novo',                 subtitle: 'Lead bruto',                     color: 'bg-blue-900/30 text-blue-300 border-blue-600' },
+  { value: 'ANALISADO',            label: 'Analisado',            subtitle: 'Ficha diagnóstica feita',         color: 'bg-cyan-900/30 text-cyan-300 border-cyan-600' },
+  { value: 'CONTATO_INICIAL',      label: 'Contato Inicial',      subtitle: 'Mensagem enviada',                color: 'bg-yellow-900/30 text-yellow-300 border-yellow-600' },
+  { value: 'CONECTADO',            label: 'Conectado',            subtitle: 'Respondeu',                       color: 'bg-lime-900/30 text-lime-300 border-lime-600' },
+  { value: 'QUALIFICADO',          label: 'Qualificado',          subtitle: 'Confirmou dor + quer conversar',  color: 'bg-green-900/30 text-green-300 border-green-600' },
+  { value: 'DIAGNOSTICO_AGENDADO', label: 'Diagnóstico Agendado', subtitle: 'Reunião marcada',                 color: 'bg-purple-900/30 text-purple-300 border-purple-600' },
+  { value: 'PROPOSTA_ENVIADA',     label: 'Proposta Enviada',     subtitle: 'Oferta formal enviada',           color: 'bg-orange-900/30 text-orange-300 border-orange-600' },
+  { value: 'NEGOCIACAO',           label: 'Negociação',           subtitle: 'Ajustes/comercial',               color: 'bg-amber-900/30 text-amber-300 border-amber-600' },
+  { value: 'GANHO',                label: 'Ganho',                subtitle: '',                                color: 'bg-emerald-900/30 text-emerald-300 border-emerald-600' },
+  { value: 'PERDIDO',              label: 'Perdido',              subtitle: '',                                color: 'bg-red-900/30 text-red-300 border-red-600' }
 ];
 
 const PRIORIDADE_OPTIONS = [
-  { value: 'ALTA', label: 'Alta', color: 'bg-red-900/30 border-red-600 text-red-300' },
-  { value: 'MEDIA', label: 'Média', color: 'bg-yellow-900/30 border-yellow-600 text-yellow-300' },
-  { value: 'BAIXA', label: 'Baixa', color: 'bg-green-900/30 border-green-600 text-green-300' }
+  { value: 'URGENTE', label: 'Urgente', color: 'bg-rose-900/50 border-rose-400 text-rose-300' },
+  { value: 'ALTA',    label: 'Alta',    color: 'bg-red-900/30 border-red-600 text-red-300' },
+  { value: 'MEDIA',   label: 'Média',   color: 'bg-yellow-900/30 border-yellow-600 text-yellow-300' },
+  { value: 'BAIXA',   label: 'Baixa',   color: 'bg-green-900/30 border-green-600 text-green-300' }
 ];
+
+const TAGS_OPTIONS = [
+  { value: 'HVBC',    label: 'HVBC',    desc: 'Alto Volume / Baixa Conversão',   color: 'bg-orange-900/40 border-orange-500 text-orange-300' },
+  { value: 'BVMP',    label: 'BVMP',    desc: 'Baixo Volume / Mercado Potente',  color: 'bg-violet-900/40 border-violet-500 text-violet-300' },
+  { value: 'DR',      label: 'DR',      desc: 'Desclassificação Recorrente',     color: 'bg-red-900/40 border-red-500 text-red-300' },
+  { value: 'INATIVO', label: 'INATIVO', desc: 'Sem participação',                color: 'bg-gray-800 border-gray-500 text-gray-400' }
+];
+
+// Helpers para tags (armazenadas como string CSV: "HVBC,DR")
+const parseTags = (tagsStr) => tagsStr ? tagsStr.split(',').map(t => t.trim()).filter(Boolean) : [];
+const toggleTag = (tagsStr, tag) => {
+  const arr = parseTags(tagsStr);
+  const idx = arr.indexOf(tag);
+  if (idx >= 0) arr.splice(idx, 1); else arr.push(tag);
+  return arr.join(',');
+};
 
 const PACOTES = ['Starter', 'Pro', 'Premium', 'Avulso'];
 const SEGMENTOS_INICIAIS = ['Construção', 'TI', 'Saúde', 'Serviços', 'Fornecimento', 'Médico-Hospitalar', 'Serviços Gerais'];
@@ -389,7 +409,7 @@ const supabaseHelper = {
     'cnpj', 'empresa', 'segmento', 'contato', 'cargo', 'telefone', 'email',
     'prioridade', 'status', 'score', 'owner', 'origem', 'pacoteInteresse',
     'valorpotencial', 'proximoFollowup', 'tentativas', 'dataentrada',
-    'historico', 'observacoes', 'ficha_diagnostica', 'updated_by'
+    'historico', 'observacoes', 'ficha_diagnostica', 'updated_by', 'tags'
   ],
 
   // Atualizar um lead existente
@@ -504,6 +524,7 @@ const CRMAlinhatta = () => {
   const [filterSegmento, setFilterSegmento] = useState('TODOS');
   const [filterOwner, setFilterOwner] = useState('TODOS');
   const [filterOrigem, setFilterOrigem] = useState('TODOS');
+  const [filterTag, setFilterTag] = useState('TODOS');
   const [sortBy, setSortBy] = useState('dataentrada'); // dataentrada, empresa, valorpotencial
   const [sortOrder, setSortOrder] = useState('desc'); // asc, desc
   const [showAddModal, setShowAddModal] = useState(false);
@@ -887,6 +908,7 @@ const CRMAlinhatta = () => {
       const ultimaInteracaoIndex = getColumnIndex(['Ultima Interacao', 'UltimaInteracao', 'ultima_interacao', 'Última Interação', 'Ultima Interação']);
       const tentativasCSVIndex = getColumnIndex(['tentativas', 'Tentativas']);
       const fichaDiagnosticaIndex = getColumnIndex(['ficha_diagnostica', 'Ficha Diagnostica', 'Ficha Diagnóstica']);
+      const tagsCSVIndex = getColumnIndex(['tags', 'Tags', 'Classificacao', 'Classificação']);
 
       console.log(`Mapeamento de colunas:`, {
         empresa: empresaIndex >= 0 ? headers[empresaIndex] : 'NÃO ENCONTRADO',
@@ -926,13 +948,21 @@ const CRMAlinhatta = () => {
         const ultimaInteracaoCSV = ultimaInteracaoIndex !== -1 ? values[ultimaInteracaoIndex] : '';
         const tentativasCSV = tentativasCSVIndex !== -1 ? parseInt(values[tentativasCSVIndex]) || 0 : 0;
         const fichaDiagnosticaCSV = fichaDiagnosticaIndex !== -1 ? values[fichaDiagnosticaIndex] : '';
+        // Tags: normaliza valores válidos (HVBC, BVMP, DR, INATIVO), ignora inválidos
+        const TAGS_VALIDAS = ['HVBC', 'BVMP', 'DR', 'INATIVO'];
+        const tagsRaw = tagsCSVIndex !== -1 ? values[tagsCSVIndex] : '';
+        const tagsCSV = tagsRaw
+          ? tagsRaw.split(/[,;|]/).map(t => t.trim().toUpperCase()).filter(t => TAGS_VALIDAS.includes(t)).join(',')
+          : '';
 
         // Determinar prioridade baseado no score (escala 0-15) ou Rank (fallback)
-        // Se Score for 0/vazio, usa Rank: top 10 = ALTA, 11-30 = MÉDIA, resto = BAIXA
+        // URGENTE ≥ 14 | ALTA ≥ 10 | MÉDIA ≥ 6 | BAIXA < 6
         let prioridade = 'MEDIA';
         if (scoreValue > 0) {
           // Usa Score (escala 0-15)
-          if (scoreValue >= 12) {
+          if (scoreValue >= 14) {
+            prioridade = 'URGENTE';
+          } else if (scoreValue >= 10) {
             prioridade = 'ALTA';
           } else if (scoreValue >= 6) {
             prioridade = 'MEDIA';
@@ -941,7 +971,9 @@ const CRMAlinhatta = () => {
           }
         } else if (rankValue > 0) {
           // Fallback: usa Rank se Score não disponível
-          if (rankValue <= 10) {
+          if (rankValue <= 5) {
+            prioridade = 'URGENTE';
+          } else if (rankValue <= 10) {
             prioridade = 'ALTA';
           } else if (rankValue <= 30) {
             prioridade = 'MEDIA';
@@ -949,8 +981,8 @@ const CRMAlinhatta = () => {
             prioridade = 'BAIXA';
           }
         }
-        // Se o CSV já traz prioridade explícita (ALTA/MEDIA/BAIXA), ela tem precedência
-        if (['ALTA', 'MEDIA', 'BAIXA'].includes(prioridadeCSV?.toUpperCase())) {
+        // Se o CSV já traz prioridade explícita, ela tem precedência
+        if (['URGENTE', 'ALTA', 'MEDIA', 'BAIXA'].includes(prioridadeCSV?.toUpperCase())) {
           prioridade = prioridadeCSV.toUpperCase();
         }
 
@@ -962,9 +994,15 @@ const CRMAlinhatta = () => {
         
         // Mapear status do CSV para valores válidos do CRM
         const STATUS_VALIDOS = {
-          'NOVO': 'NOVO', 'EM_CONTATO': 'CONTATO_INICIAL', 'CONTATO_INICIAL': 'CONTATO_INICIAL',
-          'QUALIFICADO': 'QUALIFICADO', 'PROPOSTA_ENVIADA': 'PROPOSTA_ENVIADA',
-          'GANHO': 'GANHO', 'PERDIDO': 'PERDIDO', 'DIAGNOSTICO_AGENDADO': 'DIAGNOSTICO_AGENDADO'
+          'NOVO': 'NOVO',
+          'ANALISADO': 'ANALISADO',
+          'CONTATO_INICIAL': 'CONTATO_INICIAL', 'EM_CONTATO': 'CONTATO_INICIAL',
+          'CONECTADO': 'CONECTADO', 'RESPONDEU': 'CONECTADO',
+          'QUALIFICADO': 'QUALIFICADO',
+          'DIAGNOSTICO_AGENDADO': 'DIAGNOSTICO_AGENDADO', 'REUNIAO_MARCADA': 'DIAGNOSTICO_AGENDADO',
+          'PROPOSTA_ENVIADA': 'PROPOSTA_ENVIADA',
+          'NEGOCIACAO': 'NEGOCIACAO', 'NEGOCIAÇÃO': 'NEGOCIACAO',
+          'GANHO': 'GANHO', 'PERDIDO': 'PERDIDO'
         };
         const statusFinal = STATUS_VALIDOS[statusCSV?.toUpperCase()] || 'NOVO';
 
@@ -985,6 +1023,7 @@ const CRMAlinhatta = () => {
           valorpotencial: valorCSV || 0,
           proximoFollowup: followupCSV || '',
           tentativas: tentativasCSV,
+          tags: tagsCSV,
           dataentrada: dataEntradaCSV || formatDate(),
           ultimaInteracao: ultimaInteracaoCSV || '',
           ficha_diagnostica: fichaDiagnosticaCSV || '',
@@ -1061,7 +1100,8 @@ const CRMAlinhatta = () => {
       const matchSegmento = filterSegmento === 'TODOS' || lead.segmento === filterSegmento;
       const matchOwner = filterOwner === 'TODOS' || lead.owner === filterOwner;
       const matchOrigem = filterOrigem === 'TODOS' || lead.origem === filterOrigem;
-      return matchSearch && matchStatus && matchPrioridade && matchSegmento && matchOwner && matchOrigem;
+      const matchTag = filterTag === 'TODOS' || parseTags(lead.tags || '').includes(filterTag);
+      return matchSearch && matchStatus && matchPrioridade && matchSegmento && matchOwner && matchOrigem && matchTag;
     })
     .sort((a, b) => {
       let aValue, bValue;
@@ -1120,8 +1160,8 @@ const CRMAlinhatta = () => {
     novos: leads.filter(l => l.status === 'NOVO').length,
     ganhos: leads.filter(l => l.status === 'GANHO').length,
     perdidos: leads.filter(l => l.status === 'PERDIDO').length,
-    emNegociacao: leads.filter(l => l.status === 'PROPOSTA_ENVIADA').length,
-    valorPipeline: leads.filter(l => ['QUALIFICADO', 'PROPOSTA_ENVIADA', 'GANHO'].includes(l.status))
+    emNegociacao: leads.filter(l => ['PROPOSTA_ENVIADA', 'NEGOCIACAO'].includes(l.status)).length,
+    valorPipeline: leads.filter(l => ['QUALIFICADO', 'DIAGNOSTICO_AGENDADO', 'PROPOSTA_ENVIADA', 'NEGOCIACAO', 'GANHO'].includes(l.status))
                         .reduce((sum, l) => sum + (l.valorpotencial || 0), 0),
     followupsHoje: leads.filter(l => l.proximoFollowup === formatDate()).length
   };
@@ -1234,6 +1274,8 @@ const CRMAlinhatta = () => {
             setFilterOwner={setFilterOwner}
             filterOrigem={filterOrigem}
             setFilterOrigem={setFilterOrigem}
+            filterTag={filterTag}
+            setFilterTag={setFilterTag}
             sortBy={sortBy}
             setSortBy={setSortBy}
             sortOrder={sortOrder}
@@ -1304,7 +1346,7 @@ const CRMAlinhatta = () => {
   );
 };
 
-const PipelineView = ({ leads, searchTerm, setSearchTerm, filterStatus, setFilterStatus, filterPrioridade, setFilterPrioridade, filterSegmento, setFilterSegmento, filterOwner, setFilterOwner, filterOrigem, setFilterOrigem, sortBy, setSortBy, sortOrder, setSortOrder, onSelectLead, onAddLead, onImportLeads, onExportLeads, metrics, segmentos, sdrs }) => {
+const PipelineView = ({ leads, searchTerm, setSearchTerm, filterStatus, setFilterStatus, filterPrioridade, setFilterPrioridade, filterSegmento, setFilterSegmento, filterOwner, setFilterOwner, filterOrigem, setFilterOrigem, filterTag, setFilterTag, sortBy, setSortBy, sortOrder, setSortOrder, onSelectLead, onAddLead, onImportLeads, onExportLeads, metrics, segmentos, sdrs }) => {
   const followupsHoje = leads.filter(l => l.proximoFollowup === formatDate());
   const followupsAtrasados = leads.filter(l => l.proximoFollowup && l.proximoFollowup < formatDate());
 
@@ -1387,7 +1429,7 @@ const PipelineView = ({ leads, searchTerm, setSearchTerm, filterStatus, setFilte
                 {leads.length} {leads.length === 1 ? 'resultado' : 'resultados'}
               </p>
             </div>
-            {(filterStatus !== 'TODOS' || filterPrioridade !== 'TODOS' || filterSegmento !== 'TODOS' || filterOwner !== 'TODOS' || filterOrigem !== 'TODOS' || searchTerm) && (
+            {(filterStatus !== 'TODOS' || filterPrioridade !== 'TODOS' || filterSegmento !== 'TODOS' || filterOwner !== 'TODOS' || filterOrigem !== 'TODOS' || filterTag !== 'TODOS' || searchTerm) && (
               <button
                 onClick={() => {
                   setFilterStatus('TODOS');
@@ -1395,6 +1437,7 @@ const PipelineView = ({ leads, searchTerm, setSearchTerm, filterStatus, setFilte
                   setFilterSegmento('TODOS');
                   setFilterOwner('TODOS');
                   setFilterOrigem('TODOS');
+                  setFilterTag('TODOS');
                   setSearchTerm('');
                 }}
                 className="text-xs text-primary hover:text-primary-dark font-medium transition underline"
@@ -1405,7 +1448,7 @@ const PipelineView = ({ leads, searchTerm, setSearchTerm, filterStatus, setFilte
           </div>
 
           {/* Grid de filtros limpo e organizado */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1.5">Status</label>
               <select
@@ -1415,7 +1458,7 @@ const PipelineView = ({ leads, searchTerm, setSearchTerm, filterStatus, setFilte
               >
                 <option value="TODOS">Todos</option>
                 {STATUS_OPTIONS.map(s => (
-                  <option key={s.value} value={s.value}>{s.label}</option>
+                  <option key={s.value} value={s.value}>{s.label}{s.subtitle ? ` — ${s.subtitle}` : ''}</option>
                 ))}
               </select>
             </div>
@@ -1472,6 +1515,20 @@ const PipelineView = ({ leads, searchTerm, setSearchTerm, filterStatus, setFilte
                 <option value="TODOS">Todas</option>
                 {ORIGENS_LEAD.map(origem => (
                   <option key={origem} value={origem}>{origem}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">Tag</label>
+              <select
+                value={filterTag}
+                onChange={(e) => setFilterTag(e.target.value)}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-primary focus:border-primary bg-white hover:border-gray-400 transition"
+              >
+                <option value="TODOS">Todas</option>
+                {TAGS_OPTIONS.map(t => (
+                  <option key={t.value} value={t.value}>{t.label} — {t.desc}</option>
                 ))}
               </select>
             </div>
@@ -1565,11 +1622,14 @@ const LeadCard = ({ lead, onClick }) => {
           )}
         </div>
         <div className="flex flex-col items-end gap-2">
-          <span className={`px-3 py-1 rounded-full text-xs font-medium border ${status?.color}`}>
+          <span
+            title={status?.subtitle || status?.label}
+            className={`px-3 py-1 rounded-full text-xs font-medium border ${status?.color}`}
+          >
             {status?.label}
           </span>
-          <span className={`px-2 py-1 rounded text-xs font-medium border ${prioridade?.color}`}>
-            {prioridade?.label}
+          <span className={`px-2 py-1 rounded text-xs font-bold border ${prioridade?.color} ${lead.prioridade === 'URGENTE' ? 'animate-pulse ring-1 ring-rose-400' : ''}`}>
+            {lead.prioridade === 'URGENTE' ? '🔴 ' : ''}{prioridade?.label}
           </span>
           {lead.origem && (
             <span className="px-2 py-1 rounded text-xs font-medium bg-accent text-neutral-dark">
@@ -1604,6 +1664,19 @@ const LeadCard = ({ lead, onClick }) => {
 
       {lead.notaUltimaInteracao && (
         <p className="text-sm text-neutral-text mt-2 italic truncate">"{lead.notaUltimaInteracao}"</p>
+      )}
+
+      {lead.tags && parseTags(lead.tags).length > 0 && (
+        <div className="flex flex-wrap gap-1 mt-2">
+          {parseTags(lead.tags).map(tag => {
+            const t = TAGS_OPTIONS.find(o => o.value === tag);
+            return t ? (
+              <span key={tag} title={t.desc} className={`px-2 py-0.5 rounded text-xs font-bold border ${t.color}`}>
+                {t.label}
+              </span>
+            ) : null;
+          })}
+        </div>
       )}
     </div>
   );
@@ -1777,6 +1850,21 @@ const ViewLeadDetails = ({ lead }) => {
       <DetailField label="Origem do Lead" value={lead.origem || '-'} icon={<MapPin className="w-4 h-4 text-secondary" />} />
       <DetailField label="Status" value={status?.label} icon={null} />
       <DetailField label="Prioridade" value={prioridade?.label} icon={null} />
+      {lead.tags && parseTags(lead.tags).length > 0 && (
+        <div className="md:col-span-2">
+          <p className="text-xs text-gray-400 mb-2 font-medium uppercase tracking-wide">Tags de Classificação</p>
+          <div className="flex flex-wrap gap-2">
+            {parseTags(lead.tags).map(tag => {
+              const t = TAGS_OPTIONS.find(o => o.value === tag);
+              return t ? (
+                <span key={tag} title={t.desc} className={`px-3 py-1 rounded-full text-xs font-bold border ${t.color}`}>
+                  {t.label} — {t.desc}
+                </span>
+              ) : null;
+            })}
+          </div>
+        </div>
+      )}
       <DetailField label="Contato Principal" value={lead.contato} icon={null} />
       <DetailField label="Cargo" value={lead.cargo} icon={null} />
       <DetailField label="Telefone" value={lead.telefone} icon={<Phone className="w-4 h-4" />} />
@@ -1870,7 +1958,7 @@ const EditLeadForm = ({ lead, onChange, onSave, isSaving, sdrs }) => (
         className="w-full px-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-base"
       >
         {STATUS_OPTIONS.map(s => (
-          <option key={s.value} value={s.value}>{s.label}</option>
+          <option key={s.value} value={s.value}>{s.label}{s.subtitle ? ` — ${s.subtitle}` : ''}</option>
         ))}
       </select>
     </div>
@@ -1885,6 +1973,27 @@ const EditLeadForm = ({ lead, onChange, onSave, isSaving, sdrs }) => (
           <option key={p.value} value={p.value}>{p.label}</option>
         ))}
       </select>
+    </div>
+    <div className="md:col-span-2">
+      <label className="block text-sm font-medium text-gray-300 mb-2">Tags de Classificação</label>
+      <div className="flex flex-wrap gap-2">
+        {TAGS_OPTIONS.map(t => {
+          const active = parseTags(lead.tags || '').includes(t.value);
+          return (
+            <button
+              key={t.value}
+              type="button"
+              title={t.desc}
+              onClick={() => onChange({ ...lead, tags: toggleTag(lead.tags || '', t.value) })}
+              className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${
+                active ? t.color : 'bg-gray-800 border-gray-600 text-gray-500 hover:border-gray-400'
+              }`}
+            >
+              {t.label} {active ? '✓' : '+'} <span className="font-normal opacity-70">— {t.desc}</span>
+            </button>
+          );
+        })}
+      </div>
     </div>
     <div>
       <label className="block text-sm font-medium text-gray-300 mb-1">Contato Principal</label>
@@ -2212,6 +2321,7 @@ const AddLeadModal = ({ onClose, onAdd, segmentos, sdrs }) => {
     origem: 'Planilha', // Origem do lead
     prioridade: 'MEDIA',
     status: 'NOVO',
+    tags: '',
     pacoteInteresse: '',
     valorpotencial: 0,
     proximoFollowup: '',
@@ -2387,6 +2497,28 @@ const AddLeadModal = ({ onClose, onAdd, segmentos, sdrs }) => {
                   <option key={p.value} value={p.value}>{p.label}</option>
                 ))}
               </select>
+            </div>
+
+            <div className="col-span-full">
+              <label className="block text-sm font-medium text-gray-300 mb-2">Tags de Classificação</label>
+              <div className="flex flex-wrap gap-2">
+                {TAGS_OPTIONS.map(t => {
+                  const active = parseTags(formData.tags || '').includes(t.value);
+                  return (
+                    <button
+                      key={t.value}
+                      type="button"
+                      title={t.desc}
+                      onClick={() => setFormData({ ...formData, tags: toggleTag(formData.tags || '', t.value) })}
+                      className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${
+                        active ? t.color : 'bg-gray-800 border-gray-600 text-gray-500 hover:border-gray-400'
+                      }`}
+                    >
+                      {t.label} {active ? '✓' : '+'} <span className="font-normal opacity-70">— {t.desc}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             <div>
