@@ -75,6 +75,7 @@ const Users = createIcon(['M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2', 'M9 11a4 4 
 const MapPin = createIcon(['M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z', 'M12 13a3 3 0 100-6 3 3 0 000 6z']);
 const User = createIcon(['M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2', 'M12 11a4 4 0 100-8 4 4 0 000 8z']);
 const Clipboard = createIcon(['M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2', 'M9 2h6v4H9z']);
+const MoreVertical = createIcon(['M12 13a1 1 0 100-2 1 1 0 000 2z', 'M12 6a1 1 0 100-2 1 1 0 000 2z', 'M12 20a1 1 0 100-2 1 1 0 000 2z']);
 
 // Verificar se os ícones são funções válidas
 if (typeof window !== 'undefined') {
@@ -1850,6 +1851,91 @@ const PipelineView = ({ leads, totalLeadsCount, searchTerm, setSearchTerm, filte
   );
 };
 
+// Menu kebab (⋮) de ações rápidas no card. Aparece no canto superior direito;
+// abre popover com Avançar / +7d / Perdido. Fecha por clique fora ou Esc.
+const LeadCardMenu = ({ lead, nextStatusLabel, onAdvanceStatus, onSnoozeFollowup, onMarkLostRequest }) => {
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open]);
+
+  const handleItem = (e, fn) => {
+    e.stopPropagation();
+    setOpen(false);
+    fn();
+  };
+
+  return (
+    <div className="relative" onClick={(e) => e.stopPropagation()}>
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setOpen(o => !o); }}
+        aria-label="Ações do lead"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className="p-1.5 rounded-md text-gray-500 hover:text-gray-200 hover:bg-gray-700/40 transition focus:outline-none focus:ring-1 focus:ring-gray-500"
+      >
+        <MoreVertical className="w-5 h-5" />
+      </button>
+
+      {open && (
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            onClick={(e) => { e.stopPropagation(); setOpen(false); }}
+          />
+          <div
+            role="menu"
+            className="absolute right-0 top-full mt-1 z-50 w-56 rounded-lg shadow-xl border border-gray-700 py-1"
+            style={{ backgroundColor: '#1e252b' }}
+          >
+            {onAdvanceStatus && nextStatusLabel && (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={(e) => handleItem(e, () => onAdvanceStatus(lead))}
+                className="w-full text-left px-3 py-2 text-sm text-emerald-300 hover:bg-emerald-900/30 transition flex items-center gap-2"
+              >
+                <span className="w-5 text-center">✓</span>
+                <span>Avançar para {nextStatusLabel}</span>
+              </button>
+            )}
+            {onSnoozeFollowup && (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={(e) => handleItem(e, () => onSnoozeFollowup(lead, 7))}
+                className="w-full text-left px-3 py-2 text-sm text-blue-300 hover:bg-blue-900/30 transition flex items-center gap-2"
+              >
+                <span className="w-5 text-center">📅</span>
+                <span>Adiar follow-up 7 dias</span>
+              </button>
+            )}
+            {onMarkLostRequest && (
+              <>
+                <div className="border-t border-gray-700 my-1" />
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={(e) => handleItem(e, () => onMarkLostRequest(lead))}
+                  className="w-full text-left px-3 py-2 text-sm text-red-300 hover:bg-red-900/30 transition flex items-center gap-2"
+                >
+                  <span className="w-5 text-center">❌</span>
+                  <span>Marcar como perdido</span>
+                </button>
+              </>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
 const LeadCard = ({ lead, onClick, onAdvanceStatus, onSnoozeFollowup, onMarkLostRequest, nextStatusLabel }) => {
   const status = STATUS_OPTIONS.find(s => s.value === lead.status);
   const prioridade = PRIORIDADE_OPTIONS.find(p => p.value === lead.prioridade);
@@ -1865,11 +1951,7 @@ const LeadCard = ({ lead, onClick, onAdvanceStatus, onSnoozeFollowup, onMarkLost
     ? Math.floor((new Date(formatDate() + 'T00:00:00').getTime() - new Date(ultimaData + 'T00:00:00').getTime()) / (1000 * 60 * 60 * 24))
     : null;
   const isEstagnado = !isTerminal && diasSemInteracao !== null && diasSemInteracao >= 30;
-
-  const stopAndRun = (e, fn) => {
-    e.stopPropagation();
-    fn();
-  };
+  const showMenu = !isTerminal && (onAdvanceStatus || onSnoozeFollowup || onMarkLostRequest);
 
   return (
     <div
@@ -1879,28 +1961,39 @@ const LeadCard = ({ lead, onClick, onAdvanceStatus, onSnoozeFollowup, onMarkLost
       }`}
       style={{ backgroundColor: '#1e252b' }}
     >
-      <div className="flex justify-between items-start mb-3">
-        <div className="flex-1">
-          <h3 className="font-bold text-lg text-neutral-dark" style={{ fontFamily: 'Montserrat, sans-serif' }}>{lead.empresa}</h3>
+      <div className="flex justify-between items-start mb-3 gap-2">
+        <div className="flex-1 min-w-0">
+          <h3 className="font-bold text-lg text-neutral-dark break-words" style={{ fontFamily: 'Montserrat, sans-serif' }}>{lead.empresa}</h3>
           <p className="text-sm text-neutral-text">{lead.segmento}</p>
           {lead.owner && (
             <p className="text-xs text-primary font-medium mt-1">{lead.owner}</p>
           )}
         </div>
-        <div className="flex flex-col items-end gap-2">
-          <span
-            title={status?.subtitle || status?.label}
-            className={`px-3 py-1 rounded-full text-xs font-medium border ${status?.color}`}
-          >
-            {status?.label}
-          </span>
-          <span className={`px-2 py-1 rounded text-xs font-bold border ${prioridade?.color} ${lead.prioridade === 'URGENTE' ? 'animate-pulse ring-1 ring-rose-400' : ''}`}>
-            {lead.prioridade === 'URGENTE' ? '🔴 ' : ''}{prioridade?.label}
-          </span>
-          {lead.origem && (
-            <span className="px-2 py-1 rounded text-xs font-medium bg-accent text-neutral-dark">
-              {lead.origem}
+        <div className="flex items-start gap-1">
+          <div className="flex flex-col items-end gap-2">
+            <span
+              title={status?.subtitle || status?.label}
+              className={`px-3 py-1 rounded-full text-xs font-medium border ${status?.color}`}
+            >
+              {status?.label}
             </span>
+            <span className={`px-2 py-1 rounded text-xs font-bold border ${prioridade?.color} ${lead.prioridade === 'URGENTE' ? 'animate-pulse ring-1 ring-rose-400' : ''}`}>
+              {lead.prioridade === 'URGENTE' ? '🔴 ' : ''}{prioridade?.label}
+            </span>
+            {lead.origem && (
+              <span className="px-2 py-1 rounded text-xs font-medium bg-accent text-neutral-dark">
+                {lead.origem}
+              </span>
+            )}
+          </div>
+          {showMenu && (
+            <LeadCardMenu
+              lead={lead}
+              nextStatusLabel={nextStatusLabel}
+              onAdvanceStatus={onAdvanceStatus}
+              onSnoozeFollowup={onSnoozeFollowup}
+              onMarkLostRequest={onMarkLostRequest}
+            />
           )}
         </div>
       </div>
@@ -1955,41 +2048,6 @@ const LeadCard = ({ lead, onClick, onAdvanceStatus, onSnoozeFollowup, onMarkLost
         <p className="text-xs text-gray-400 mt-2 italic">
           💤 {diasSemInteracao} dias sem interação
         </p>
-      )}
-
-      {!isTerminal && (onAdvanceStatus || onSnoozeFollowup || onMarkLostRequest) && (
-        <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-gray-700">
-          {onAdvanceStatus && nextStatusLabel && (
-            <button
-              type="button"
-              onClick={(e) => stopAndRun(e, () => onAdvanceStatus(lead))}
-              title={`Avançar para ${nextStatusLabel}`}
-              className="px-3 py-1.5 text-xs font-medium rounded-md bg-emerald-900/40 text-emerald-300 border border-emerald-700 hover:bg-emerald-900/60 transition"
-            >
-              ✓ Avançar → {nextStatusLabel}
-            </button>
-          )}
-          {onSnoozeFollowup && (
-            <button
-              type="button"
-              onClick={(e) => stopAndRun(e, () => onSnoozeFollowup(lead, 7))}
-              title="Adiar follow-up em 7 dias"
-              className="px-3 py-1.5 text-xs font-medium rounded-md bg-blue-900/40 text-blue-300 border border-blue-700 hover:bg-blue-900/60 transition"
-            >
-              📅 +7d
-            </button>
-          )}
-          {onMarkLostRequest && (
-            <button
-              type="button"
-              onClick={(e) => stopAndRun(e, () => onMarkLostRequest(lead))}
-              title="Marcar como perdido"
-              className="px-3 py-1.5 text-xs font-medium rounded-md bg-red-900/40 text-red-300 border border-red-700 hover:bg-red-900/60 transition ml-auto"
-            >
-              ❌ Perdido
-            </button>
-          )}
-        </div>
       )}
     </div>
   );
