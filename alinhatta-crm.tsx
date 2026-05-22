@@ -2520,6 +2520,31 @@ const DashboardView = ({ leads, metrics, segmentos, sdrs }) => {
     ? ((metrics.ganhos / desfechoTotal) * 100).toFixed(1)
     : 0;
 
+  // Tempo médio até GANHO (dias entre dataentrada e última interação)
+  const diasEntreISO = (inicio, fim) => {
+    if (!inicio || !fim) return null;
+    const ms = new Date(fim + 'T00:00:00').getTime() - new Date(inicio + 'T00:00:00').getTime();
+    return Math.max(0, Math.floor(ms / (1000 * 60 * 60 * 24)));
+  };
+  const tempoAteGanho = (() => {
+    const ganhos = leads.filter(l => l.status === 'GANHO');
+    const tempos = ganhos.map(l => {
+      const ultima = l.historico && l.historico.length > 0
+        ? l.historico[l.historico.length - 1].data
+        : l.ultimaInteracao;
+      return diasEntreISO(l.dataentrada, ultima);
+    }).filter(t => t !== null);
+    if (tempos.length === 0) return null;
+    return Math.round(tempos.reduce((a, b) => a + b, 0) / tempos.length);
+  })();
+  const tempoEmAberto = (() => {
+    const abertos = leads.filter(l => l.status !== 'GANHO' && l.status !== 'PERDIDO');
+    const hoje = formatDate();
+    const tempos = abertos.map(l => diasEntreISO(l.dataentrada, hoje)).filter(t => t !== null);
+    if (tempos.length === 0) return null;
+    return Math.round(tempos.reduce((a, b) => a + b, 0) / tempos.length);
+  })();
+
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold text-gray-200">Dashboard de Métricas</h2>
@@ -2554,6 +2579,28 @@ const DashboardView = ({ leads, metrics, segmentos, sdrs }) => {
           icon={<TrendingUp className="w-6 h-6" />}
           subtitle="Potencial total"
           color="text-emerald-600"
+        />
+      </div>
+
+      {/* Tempo Médio */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+        <MetricCard
+          title="Tempo Médio até Ganho"
+          value={tempoAteGanho !== null ? `${tempoAteGanho} dias` : '—'}
+          icon={<TrendingUp className="w-6 h-6" />}
+          subtitle={tempoAteGanho !== null
+            ? `Média de ${metrics.ganhos} contrato(s) fechado(s)`
+            : 'Aguardando primeiros ganhos'}
+          color="text-emerald-400"
+        />
+        <MetricCard
+          title="Tempo Médio em Aberto"
+          value={tempoEmAberto !== null ? `${tempoEmAberto} dias` : '—'}
+          icon={<Calendar className="w-6 h-6" />}
+          subtitle={tempoEmAberto !== null
+            ? `Leads no pipeline há essa média`
+            : 'Sem leads abertos'}
+          color="text-blue-400"
         />
       </div>
 
