@@ -225,6 +225,25 @@ const ORIGENS_LEAD = [
   'Indicação'
 ];
 
+const MOTIVOS_PERDA = [
+  'Preço',
+  'Sumiu / não respondeu',
+  'Foi pra concorrente',
+  'Timing ruim',
+  'Não era ICP',
+  'Sem budget',
+  'Outro'
+];
+
+const MOTIVO_PERDA_PREFIX = 'Motivo de perda: ';
+
+// Extrai o último motivo de perda registrado no histórico
+const getMotivoPerda = (lead) => {
+  if (!lead?.historico) return null;
+  const entry = [...lead.historico].reverse().find(h => h.nota && h.nota.startsWith(MOTIVO_PERDA_PREFIX));
+  return entry ? entry.nota.slice(MOTIVO_PERDA_PREFIX.length) : null;
+};
+
 // ============================================
 // FUNÇÕES UTILITÁRIAS (fora do componente)
 // ============================================
@@ -1678,6 +1697,12 @@ const LeadCard = ({ lead, onClick }) => {
         </div>
       )}
 
+      {lead.status === 'PERDIDO' && getMotivoPerda(lead) && (
+        <p className="text-sm text-red-300 mt-2 font-medium">
+          ❌ Motivo: {getMotivoPerda(lead)}
+        </p>
+      )}
+
       {lead.notaUltimaInteracao && (
         <p className="text-sm text-neutral-text mt-2 italic truncate">"{lead.notaUltimaInteracao}"</p>
       )}
@@ -1713,9 +1738,29 @@ const LeadDetailView = ({ lead, onBack, onUpdate, onAddInteracao, onDelete, form
   }, [lead]);
 
   const handleSave = async () => {
+    if (editedLead.status === 'PERDIDO') {
+      const motivoAtual = editedLead.motivoPerdidoPending || getMotivoPerda(editedLead);
+      if (!motivoAtual) {
+        alert('Selecione o motivo da perda antes de salvar.');
+        return;
+      }
+    }
+
     setIsSaving(true);
     try {
-      await onUpdate(editedLead);
+      let leadToSave = { ...editedLead };
+      if (editedLead.status === 'PERDIDO' && editedLead.motivoPerdidoPending) {
+        const novoMotivo = editedLead.motivoPerdidoPending;
+        const motivoAnterior = getMotivoPerda(lead);
+        if (novoMotivo !== motivoAnterior) {
+          leadToSave.historico = [
+            ...(editedLead.historico || []),
+            { data: formatDate(), nota: `${MOTIVO_PERDA_PREFIX}${novoMotivo}` }
+          ].slice(-500);
+        }
+      }
+      delete leadToSave.motivoPerdidoPending;
+      await onUpdate(leadToSave);
       setIsEditing(false);
     } finally {
       setIsSaving(false);
@@ -1980,6 +2025,24 @@ const EditLeadForm = ({ lead, onChange, onSave, isSaving, sdrs }) => (
           <option key={s.value} value={s.value}>{s.label}{s.subtitle ? ` — ${s.subtitle}` : ''}</option>
         ))}
       </select>
+      {lead.status === 'PERDIDO' && (
+        <div className="mt-2">
+          <label className="block text-xs font-medium text-red-300 mb-1">Motivo da perda *</label>
+          <select
+            value={lead.motivoPerdidoPending || getMotivoPerda(lead) || ''}
+            onChange={(e) => onChange({ ...lead, motivoPerdidoPending: e.target.value })}
+            className="w-full px-4 py-2 border border-red-500/50 rounded-lg focus:ring-2 focus:ring-red-500 text-base bg-red-950/20 text-gray-200"
+          >
+            <option value="">Selecione o motivo...</option>
+            {MOTIVOS_PERDA.map(m => (
+              <option key={m} value={m}>{m}</option>
+            ))}
+          </select>
+          {getMotivoPerda(lead) && !lead.motivoPerdidoPending && (
+            <p className="text-xs text-gray-400 mt-1">Motivo registrado: <span className="text-red-300">{getMotivoPerda(lead)}</span></p>
+          )}
+        </div>
+      )}
     </div>
     <div>
       <label className="block text-sm font-medium text-gray-300 mb-1">Prioridade</label>
@@ -2136,24 +2199,53 @@ const DashboardView = ({ leads, metrics, segmentos, sdrs }) => {
     color: status.color
   }));
 
+  // Conversão = ganhos / (ganhos + perdidos) — só leads com desfecho
+  const calcConversao = (subset) => {
+    const ganhos = subset.filter(l => l.status === 'GANHO').length;
+    const perdidos = subset.filter(l => l.status === 'PERDIDO').length;
+    const desfecho = ganhos + perdidos;
+    return {
+      total: subset.length,
+      ganhos,
+      perdidos,
+      desfecho,
+      taxa: desfecho > 0 ? ((ganhos / desfecho) * 100).toFixed(1) : null
+    };
+  };
+
   const segmentoDistribution = segmentos.map(seg => ({
     label: seg,
-    count: leads.filter(l => l.segmento === seg).length
-  })).filter(s => s.count > 0);
+    ...calcConversao(leads.filter(l => l.segmento === seg))
+  })).filter(s => s.total > 0).sort((a, b) => b.total - a.total);
 
   const ownerDistribution = sdrs.map(sdr => ({
     label: sdr,
-    count: leads.filter(l => l.owner === sdr).length
-  })).filter(s => s.count > 0);
+    ...calcConversao(leads.filter(l => l.owner === sdr))
+  })).filter(s => s.total > 0).sort((a, b) => b.total - a.total);
 
   const origensReais = [...new Set([...ORIGENS_LEAD, ...leads.map(l => l.origem).filter(Boolean)])];
   const origemDistribution = origensReais.map(origem => ({
     label: ORIGENS_LEAD.includes(origem) ? origem : `${origem} (legado)`,
-    count: leads.filter(l => l.origem === origem).length
-  })).filter(s => s.count > 0);
+    ...calcConversao(leads.filter(l => l.origem === origem))
+  })).filter(s => s.total > 0).sort((a, b) => b.total - a.total);
 
-  const taxaConversao = leads.length > 0 
-    ? ((metrics.ganhos / leads.length) * 100).toFixed(1)
+  // Motivos de perda agregados a partir do histórico
+  const motivosDePerda = leads
+    .filter(l => l.status === 'PERDIDO')
+    .map(l => getMotivoPerda(l))
+    .filter(Boolean)
+    .reduce((acc, m) => {
+      acc[m] = (acc[m] || 0) + 1;
+      return acc;
+    }, {});
+  const motivosEntries = Object.entries(motivosDePerda).sort((a, b) => b[1] - a[1]);
+  const totalPerdidosComMotivo = motivosEntries.reduce((s, [, c]) => s + c, 0);
+  const perdidosSemMotivo = metrics.perdidos - totalPerdidosComMotivo;
+
+  // Conversão geral baseada em desfecho real (ganhos / (ganhos + perdidos))
+  const desfechoTotal = metrics.ganhos + metrics.perdidos;
+  const taxaConversao = desfechoTotal > 0
+    ? ((metrics.ganhos / desfechoTotal) * 100).toFixed(1)
     : 0;
 
   return (
@@ -2170,9 +2262,11 @@ const DashboardView = ({ leads, metrics, segmentos, sdrs }) => {
         />
         <MetricCard
           title="Taxa de Conversão"
-          value={`${taxaConversao}%`}
+          value={desfechoTotal > 0 ? `${taxaConversao}%` : '—'}
           icon={<TrendingUp className="w-6 h-6" />}
-          subtitle={`${metrics.ganhos} ganhos de ${leads.length} leads`}
+          subtitle={desfechoTotal > 0
+            ? `${metrics.ganhos} ganhos / ${desfechoTotal} desfechos`
+            : 'Aguardando primeiros desfechos'}
           color="text-primary"
         />
         <MetricCard
@@ -2219,54 +2313,63 @@ const DashboardView = ({ leads, metrics, segmentos, sdrs }) => {
         </div>
       </div>
 
-      {/* Segmentos */}
-      {segmentoDistribution.length > 0 && (
-        <div className="rounded-lg shadow p-6" style={{ backgroundColor: '#1e252b' }}>
-          <h3 className="text-xl font-bold text-gray-200 mb-4">Leads por Segmento</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {segmentoDistribution.map((seg, idx) => (
-              <div key={idx} className="p-4 rounded-lg flex justify-between items-center" style={{ backgroundColor: '#1a1f26' }}>
-                <span className="font-medium text-gray-200">{seg.label}</span>
-                <span className="bg-primary text-white px-3 py-1 rounded-full font-bold" style={{ fontFamily: 'Montserrat, sans-serif' }}>
-                  {seg.count}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Distribuição por SDR */}
+      {/* Conversão por SDR */}
       {ownerDistribution.length > 0 && (
         <div className="rounded-lg shadow p-6" style={{ backgroundColor: '#1e252b' }}>
-          <h3 className="text-xl font-bold text-gray-200 mb-4">Leads por SDR</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {ownerDistribution.map((owner, idx) => (
-              <div key={idx} className="bg-gradient-to-br from-primary to-secondary text-white p-4 rounded-lg flex justify-between items-center">
-                <span className="font-medium" style={{ fontFamily: 'Montserrat, sans-serif' }}>{owner.label}</span>
-                <span className="bg-white text-primary px-3 py-1 rounded-full font-bold" style={{ fontFamily: 'Montserrat, sans-serif' }}>
-                  {owner.count}
-                </span>
-              </div>
-            ))}
-          </div>
+          <h3 className="text-xl font-bold text-gray-200 mb-4">Performance por SDR</h3>
+          <ConversionTable rows={ownerDistribution} />
         </div>
       )}
 
-      {/* Distribuição por Origem */}
+      {/* Conversão por Origem */}
       {origemDistribution.length > 0 && (
         <div className="rounded-lg shadow p-6" style={{ backgroundColor: '#1e252b' }}>
-          <h3 className="text-xl font-bold text-gray-200 mb-4">Leads por Origem</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {origemDistribution.map((origem, idx) => (
-              <div key={idx} className="bg-accent p-4 rounded-lg flex justify-between items-center">
-                <span className="font-medium text-neutral-dark">{origem.label}</span>
-                <span className="bg-primary text-white px-3 py-1 rounded-full font-bold" style={{ fontFamily: 'Montserrat, sans-serif' }}>
-                  {origem.count}
-                </span>
-              </div>
-            ))}
-          </div>
+          <h3 className="text-xl font-bold text-gray-200 mb-4">Performance por Origem</h3>
+          <ConversionTable rows={origemDistribution} />
+        </div>
+      )}
+
+      {/* Conversão por Segmento */}
+      {segmentoDistribution.length > 0 && (
+        <div className="rounded-lg shadow p-6" style={{ backgroundColor: '#1e252b' }}>
+          <h3 className="text-xl font-bold text-gray-200 mb-4">Performance por Segmento</h3>
+          <ConversionTable rows={segmentoDistribution} />
+        </div>
+      )}
+
+      {/* Motivos de Perda */}
+      {metrics.perdidos > 0 && (
+        <div className="rounded-lg shadow p-6" style={{ backgroundColor: '#1e252b' }}>
+          <h3 className="text-xl font-bold text-gray-200 mb-4">Motivos de Perda</h3>
+          {motivosEntries.length === 0 ? (
+            <p className="text-gray-400 text-sm">
+              {metrics.perdidos} lead(s) perdido(s), nenhum com motivo registrado ainda.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {motivosEntries.map(([motivo, count]) => (
+                <div key={motivo} className="flex items-center gap-3">
+                  <span className="text-gray-200 w-48 truncate" title={motivo}>{motivo}</span>
+                  <div className="flex-1 bg-gray-800 rounded-full h-6 relative overflow-hidden">
+                    <div
+                      className="bg-red-500 h-full rounded-full flex items-center justify-end pr-2 text-white text-xs font-medium"
+                      style={{ width: `${(count / metrics.perdidos) * 100}%`, minWidth: '2rem' }}
+                    >
+                      {count}
+                    </div>
+                  </div>
+                  <span className="text-gray-400 text-sm w-12 text-right">
+                    {((count / metrics.perdidos) * 100).toFixed(0)}%
+                  </span>
+                </div>
+              ))}
+              {perdidosSemMotivo > 0 && (
+                <p className="text-xs text-gray-500 italic mt-2">
+                  {perdidosSemMotivo} perdido(s) sem motivo registrado
+                </p>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -2319,6 +2422,37 @@ const DashboardView = ({ leads, metrics, segmentos, sdrs }) => {
     </div>
   );
 };
+
+const ConversionTable = ({ rows }) => (
+  <div className="overflow-x-auto">
+    <table className="w-full text-sm">
+      <thead>
+        <tr className="text-gray-400 text-xs uppercase tracking-wide border-b border-gray-700">
+          <th className="text-left py-2 pr-3 font-medium">Origem</th>
+          <th className="text-right py-2 px-3 font-medium">Leads</th>
+          <th className="text-right py-2 px-3 font-medium">Ganhos</th>
+          <th className="text-right py-2 px-3 font-medium">Perdidos</th>
+          <th className="text-right py-2 pl-3 font-medium">Conversão</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row, idx) => (
+          <tr key={idx} className="border-b border-gray-800 last:border-0">
+            <td className="py-2 pr-3 text-gray-200">{row.label}</td>
+            <td className="py-2 px-3 text-right text-gray-300">{row.total}</td>
+            <td className="py-2 px-3 text-right text-emerald-400">{row.ganhos}</td>
+            <td className="py-2 px-3 text-right text-red-400">{row.perdidos}</td>
+            <td className="py-2 pl-3 text-right font-bold">
+              {row.taxa !== null
+                ? <span className={parseFloat(row.taxa) >= 50 ? 'text-emerald-300' : parseFloat(row.taxa) >= 25 ? 'text-yellow-300' : 'text-red-300'}>{row.taxa}%</span>
+                : <span className="text-gray-500 text-xs">—</span>}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+);
 
 const MetricCard = ({ title, value, icon, subtitle = '', color = "text-gray-200" }) => (
   <div className="rounded-lg shadow p-6" style={{ backgroundColor: '#1e252b' }}>
