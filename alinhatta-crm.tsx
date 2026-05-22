@@ -219,15 +219,10 @@ const PACOTES = ['Starter', 'Pro', 'Premium', 'Avulso'];
 const SEGMENTOS_INICIAIS = ['Construção', 'TI', 'Saúde', 'Serviços', 'Fornecimento', 'Médico-Hospitalar', 'Serviços Gerais'];
 const SDRS_DEFAULT = ['Gabriel', 'Dacunha'];
 const ORIGENS_LEAD = [
+  'Sistema',
   'Planilha',
-  'Indicação',
   'Tráfego Pago',
-  'Site/Formulário',
-  'LinkedIn',
-  'WhatsApp',
-  'Email Marketing',
-  'Evento',
-  'Outro'
+  'Indicação'
 ];
 
 // ============================================
@@ -525,6 +520,7 @@ const CRMAlinhatta = () => {
   const [filterOwner, setFilterOwner] = useState('TODOS');
   const [filterOrigem, setFilterOrigem] = useState('TODOS');
   const [filterTag, setFilterTag] = useState('TODOS');
+  const [filterFollowup, setFilterFollowup] = useState('TODOS'); // 'TODOS' | 'ATRASADO' | 'HOJE'
   const [sortBy, setSortBy] = useState('dataentrada'); // dataentrada, empresa, valorpotencial
   const [sortOrder, setSortOrder] = useState('desc'); // asc, desc
   const [showAddModal, setShowAddModal] = useState(false);
@@ -1276,6 +1272,8 @@ const CRMAlinhatta = () => {
             setFilterOrigem={setFilterOrigem}
             filterTag={filterTag}
             setFilterTag={setFilterTag}
+            filterFollowup={filterFollowup}
+            setFilterFollowup={setFilterFollowup}
             sortBy={sortBy}
             setSortBy={setSortBy}
             sortOrder={sortOrder}
@@ -1346,7 +1344,7 @@ const CRMAlinhatta = () => {
   );
 };
 
-const PipelineView = ({ leads, searchTerm, setSearchTerm, filterStatus, setFilterStatus, filterPrioridade, setFilterPrioridade, filterSegmento, setFilterSegmento, filterOwner, setFilterOwner, filterOrigem, setFilterOrigem, filterTag, setFilterTag, sortBy, setSortBy, sortOrder, setSortOrder, onSelectLead, onAddLead, onImportLeads, onExportLeads, metrics, segmentos, sdrs }) => {
+const PipelineView = ({ leads, searchTerm, setSearchTerm, filterStatus, setFilterStatus, filterPrioridade, setFilterPrioridade, filterSegmento, setFilterSegmento, filterOwner, setFilterOwner, filterOrigem, setFilterOrigem, filterTag, setFilterTag, filterFollowup, setFilterFollowup, sortBy, setSortBy, sortOrder, setSortOrder, onSelectLead, onAddLead, onImportLeads, onExportLeads, metrics, segmentos, sdrs }) => {
   const followupsHoje = leads.filter(l => l.proximoFollowup === formatDate());
   const followupsAtrasados = leads.filter(l => l.proximoFollowup && l.proximoFollowup < formatDate());
 
@@ -1357,14 +1355,37 @@ const PipelineView = ({ leads, searchTerm, setSearchTerm, filterStatus, setFilte
         <div className="border-l-4 border-red-500 p-4 rounded" style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)' }}>
           <div className="flex items-start">
             <AlertCircle className="w-5 h-5 text-red-400 mr-3 mt-0.5" />
-            <div>
+            <div className="flex-1">
               <h3 className="font-semibold text-red-300" style={{ fontFamily: 'Montserrat, sans-serif' }}>Atenção!</h3>
-              {followupsAtrasados.length > 0 && (
-                <p className="text-red-200 text-sm">🔴 {followupsAtrasados.length} follow-up(s) atrasado(s)</p>
-              )}
-              {followupsHoje.length > 0 && (
-                <p className="text-yellow-200 text-sm">🟡 {followupsHoje.length} follow-up(s) para hoje</p>
-              )}
+              <p className="text-xs text-red-200/70 mb-1">Clique para filtrar</p>
+              <div className="flex flex-col gap-1">
+                {followupsAtrasados.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setFilterFollowup(filterFollowup === 'ATRASADO' ? 'TODOS' : 'ATRASADO')}
+                    className={`text-red-200 text-sm text-left hover:underline transition self-start ${
+                      filterFollowup === 'ATRASADO' ? 'font-bold underline' : ''
+                    }`}
+                    title={filterFollowup === 'ATRASADO' ? 'Clique para remover o filtro' : 'Clique para filtrar apenas os atrasados'}
+                  >
+                    🔴 {followupsAtrasados.length} follow-up(s) atrasado(s)
+                    {filterFollowup === 'ATRASADO' && ' ✕'}
+                  </button>
+                )}
+                {followupsHoje.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setFilterFollowup(filterFollowup === 'HOJE' ? 'TODOS' : 'HOJE')}
+                    className={`text-yellow-200 text-sm text-left hover:underline transition self-start ${
+                      filterFollowup === 'HOJE' ? 'font-bold underline' : ''
+                    }`}
+                    title={filterFollowup === 'HOJE' ? 'Clique para remover o filtro' : 'Clique para filtrar apenas os de hoje'}
+                  >
+                    🟡 {followupsHoje.length} follow-up(s) para hoje
+                    {filterFollowup === 'HOJE' && ' ✕'}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -1429,7 +1450,7 @@ const PipelineView = ({ leads, searchTerm, setSearchTerm, filterStatus, setFilte
                 {leads.length} {leads.length === 1 ? 'resultado' : 'resultados'}
               </p>
             </div>
-            {(filterStatus !== 'TODOS' || filterPrioridade !== 'TODOS' || filterSegmento !== 'TODOS' || filterOwner !== 'TODOS' || filterOrigem !== 'TODOS' || filterTag !== 'TODOS' || searchTerm) && (
+            {(filterStatus !== 'TODOS' || filterPrioridade !== 'TODOS' || filterSegmento !== 'TODOS' || filterOwner !== 'TODOS' || filterOrigem !== 'TODOS' || filterTag !== 'TODOS' || filterFollowup !== 'TODOS' || searchTerm) && (
               <button
                 onClick={() => {
                   setFilterStatus('TODOS');
@@ -1438,6 +1459,7 @@ const PipelineView = ({ leads, searchTerm, setSearchTerm, filterStatus, setFilte
                   setFilterOwner('TODOS');
                   setFilterOrigem('TODOS');
                   setFilterTag('TODOS');
+                  setFilterFollowup('TODOS');
                   setSearchTerm('');
                 }}
                 className="text-xs text-primary hover:text-primary-dark font-medium transition underline"
@@ -1513,8 +1535,10 @@ const PipelineView = ({ leads, searchTerm, setSearchTerm, filterStatus, setFilte
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-primary focus:border-primary bg-white hover:border-gray-400 transition"
               >
                 <option value="TODOS">Todas</option>
-                {ORIGENS_LEAD.map(origem => (
-                  <option key={origem} value={origem}>{origem}</option>
+                {[...new Set([...ORIGENS_LEAD, ...leads.map(l => l.origem).filter(Boolean)])].map(origem => (
+                  <option key={origem} value={origem}>
+                    {origem}{!ORIGENS_LEAD.includes(origem) ? ' (legado)' : ''}
+                  </option>
                 ))}
               </select>
             </div>
@@ -1572,24 +1596,34 @@ const PipelineView = ({ leads, searchTerm, setSearchTerm, filterStatus, setFilte
               Adicionar Primeiro Lead
             </button>
           </div>
-        ) : leads.length > 0 && leads.filter(l => 
+        ) : leads.length > 0 && leads.filter(l =>
             l.empresa.toLowerCase().includes(searchTerm.toLowerCase()) ||
             l.cnpj.includes(searchTerm) ||
             (l.contato && l.contato.toLowerCase().includes(searchTerm.toLowerCase()))
           ).filter(l => filterStatus === 'TODOS' || l.status === filterStatus)
-          .filter(l => filterPrioridade === 'TODOS' || l.prioridade === filterPrioridade).length === 0 ? (
+          .filter(l => filterPrioridade === 'TODOS' || l.prioridade === filterPrioridade)
+          .filter(l => {
+            if (filterFollowup === 'ATRASADO') return l.proximoFollowup && l.proximoFollowup < formatDate();
+            if (filterFollowup === 'HOJE')     return l.proximoFollowup === formatDate();
+            return true;
+          }).length === 0 ? (
           <div className="rounded-lg shadow p-8 text-center" style={{ backgroundColor: '#1e252b' }}>
             <p className="text-gray-300">Nenhum lead encontrado com os filtros aplicados</p>
           </div>
         ) : (
           leads
-            .filter(l => 
+            .filter(l =>
               l.empresa.toLowerCase().includes(searchTerm.toLowerCase()) ||
               l.cnpj.includes(searchTerm) ||
               (l.contato && l.contato.toLowerCase().includes(searchTerm.toLowerCase()))
             )
             .filter(l => filterStatus === 'TODOS' || l.status === filterStatus)
             .filter(l => filterPrioridade === 'TODOS' || l.prioridade === filterPrioridade)
+            .filter(l => {
+              if (filterFollowup === 'ATRASADO') return l.proximoFollowup && l.proximoFollowup < formatDate();
+              if (filterFollowup === 'HOJE')     return l.proximoFollowup === formatDate();
+              return true;
+            })
             .map(lead => (
               <LeadCard key={lead.id} lead={lead} onClick={() => onSelectLead(lead)} />
             ))
@@ -1945,6 +1979,9 @@ const EditLeadForm = ({ lead, onChange, onSave, isSaving, sdrs }) => (
         className="w-full px-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-base"
       >
         <option value="">Selecione...</option>
+        {lead.origem && !ORIGENS_LEAD.includes(lead.origem) && (
+          <option value={lead.origem}>{lead.origem} (legado)</option>
+        )}
         {ORIGENS_LEAD.map(origem => (
           <option key={origem} value={origem}>{origem}</option>
         ))}
@@ -2127,8 +2164,9 @@ const DashboardView = ({ leads, metrics, segmentos, sdrs }) => {
     count: leads.filter(l => l.owner === sdr).length
   })).filter(s => s.count > 0);
 
-  const origemDistribution = ORIGENS_LEAD.map(origem => ({
-    label: origem,
+  const origensReais = [...new Set([...ORIGENS_LEAD, ...leads.map(l => l.origem).filter(Boolean)])];
+  const origemDistribution = origensReais.map(origem => ({
+    label: ORIGENS_LEAD.includes(origem) ? origem : `${origem} (legado)`,
     count: leads.filter(l => l.origem === origem).length
   })).filter(s => s.count > 0);
 
@@ -2152,7 +2190,7 @@ const DashboardView = ({ leads, metrics, segmentos, sdrs }) => {
           title="Taxa de Conversão"
           value={`${taxaConversao}%`}
           icon={<TrendingUp className="w-6 h-6" />}
-          subtitle={`${metrics.ganhos} ganhos`}
+          subtitle={`${metrics.ganhos} ganhos de ${leads.length} leads`}
           color="text-primary"
         />
         <MetricCard
@@ -2181,9 +2219,12 @@ const DashboardView = ({ leads, metrics, segmentos, sdrs }) => {
                 {status.label}
               </span>
               <div className="flex-1 bg-gray-200 rounded-full h-8 relative overflow-hidden">
-                <div 
+                <div
                   className="bg-primary h-full rounded-full flex items-center justify-end pr-3 text-white text-sm font-medium transition-all"
-                  style={{ width: `${leads.length > 0 ? (status.count / leads.length) * 100 : 0}%` }}
+                  style={{
+                    width: `${leads.length > 0 ? (status.count / leads.length) * 100 : 0}%`,
+                    minWidth: status.count > 0 ? '2.5rem' : undefined
+                  }}
                 >
                   {status.count > 0 && status.count}
                 </div>
