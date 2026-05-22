@@ -702,8 +702,6 @@ const CRMAlinhatta = () => {
     }
   };
 
-  // C2: async + await para garantir que a interação seja salva antes de continuar
-  // B2: .slice(-100) para limitar o histórico a 100 entradas
   const addInteracao = async (leadId, nota) => {
     const lead = leads.find(l => l.id === leadId);
     const updated = {
@@ -714,7 +712,7 @@ const CRMAlinhatta = () => {
       historico: [
         ...(lead.historico || []),
         { data: formatDate(), nota }
-      ].slice(-100)
+      ].slice(-500)
     };
     try {
       await updateLead(updated);
@@ -1097,7 +1095,11 @@ const CRMAlinhatta = () => {
       const matchOwner = filterOwner === 'TODOS' || lead.owner === filterOwner;
       const matchOrigem = filterOrigem === 'TODOS' || lead.origem === filterOrigem;
       const matchTag = filterTag === 'TODOS' || parseTags(lead.tags || '').includes(filterTag);
-      return matchSearch && matchStatus && matchPrioridade && matchSegmento && matchOwner && matchOrigem && matchTag;
+      const matchFollowup =
+        filterFollowup === 'TODOS' ||
+        (filterFollowup === 'ATRASADO' && lead.proximoFollowup && lead.proximoFollowup < formatDate()) ||
+        (filterFollowup === 'HOJE'     && lead.proximoFollowup === formatDate());
+      return matchSearch && matchStatus && matchPrioridade && matchSegmento && matchOwner && matchOrigem && matchTag && matchFollowup;
     })
     .sort((a, b) => {
       let aValue, bValue;
@@ -1258,6 +1260,7 @@ const CRMAlinhatta = () => {
         {view === 'pipeline' && !selectedLead && (
           <PipelineView
             leads={filteredAndSortedLeads}
+            totalLeadsCount={leads.length}
             searchTerm={searchTerm}
             setSearchTerm={setSearchTerm}
             filterStatus={filterStatus}
@@ -1344,7 +1347,7 @@ const CRMAlinhatta = () => {
   );
 };
 
-const PipelineView = ({ leads, searchTerm, setSearchTerm, filterStatus, setFilterStatus, filterPrioridade, setFilterPrioridade, filterSegmento, setFilterSegmento, filterOwner, setFilterOwner, filterOrigem, setFilterOrigem, filterTag, setFilterTag, filterFollowup, setFilterFollowup, sortBy, setSortBy, sortOrder, setSortOrder, onSelectLead, onAddLead, onImportLeads, onExportLeads, metrics, segmentos, sdrs }) => {
+const PipelineView = ({ leads, totalLeadsCount, searchTerm, setSearchTerm, filterStatus, setFilterStatus, filterPrioridade, setFilterPrioridade, filterSegmento, setFilterSegmento, filterOwner, setFilterOwner, filterOrigem, setFilterOrigem, filterTag, setFilterTag, filterFollowup, setFilterFollowup, sortBy, setSortBy, sortOrder, setSortOrder, onSelectLead, onAddLead, onImportLeads, onExportLeads, metrics, segmentos, sdrs }) => {
   const followupsHoje = leads.filter(l => l.proximoFollowup === formatDate());
   const followupsAtrasados = leads.filter(l => l.proximoFollowup && l.proximoFollowup < formatDate());
 
@@ -1585,48 +1588,27 @@ const PipelineView = ({ leads, searchTerm, setSearchTerm, filterStatus, setFilte
       {/* Lista de Leads */}
       <div className="space-y-3">
         {leads.length === 0 ? (
-          <div className="rounded-lg shadow p-12 text-center" style={{ backgroundColor: '#1e252b' }}>
-            <p className="text-gray-300 text-lg mb-4">Nenhum lead cadastrado ainda</p>
-            <button
-              onClick={onAddLead}
-              className="bg-primary text-white px-6 py-4 rounded-lg hover:bg-primary-dark transition inline-flex items-center justify-center gap-2 text-base"
-              style={{ fontFamily: 'Montserrat, sans-serif' }}
-            >
-              <Plus className="w-5 h-5" />
-              Adicionar Primeiro Lead
-            </button>
-          </div>
-        ) : leads.length > 0 && leads.filter(l =>
-            l.empresa.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            l.cnpj.includes(searchTerm) ||
-            (l.contato && l.contato.toLowerCase().includes(searchTerm.toLowerCase()))
-          ).filter(l => filterStatus === 'TODOS' || l.status === filterStatus)
-          .filter(l => filterPrioridade === 'TODOS' || l.prioridade === filterPrioridade)
-          .filter(l => {
-            if (filterFollowup === 'ATRASADO') return l.proximoFollowup && l.proximoFollowup < formatDate();
-            if (filterFollowup === 'HOJE')     return l.proximoFollowup === formatDate();
-            return true;
-          }).length === 0 ? (
-          <div className="rounded-lg shadow p-8 text-center" style={{ backgroundColor: '#1e252b' }}>
-            <p className="text-gray-300">Nenhum lead encontrado com os filtros aplicados</p>
-          </div>
+          totalLeadsCount === 0 ? (
+            <div className="rounded-lg shadow p-12 text-center" style={{ backgroundColor: '#1e252b' }}>
+              <p className="text-gray-300 text-lg mb-4">Nenhum lead cadastrado ainda</p>
+              <button
+                onClick={onAddLead}
+                className="bg-primary text-white px-6 py-4 rounded-lg hover:bg-primary-dark transition inline-flex items-center justify-center gap-2 text-base"
+                style={{ fontFamily: 'Montserrat, sans-serif' }}
+              >
+                <Plus className="w-5 h-5" />
+                Adicionar Primeiro Lead
+              </button>
+            </div>
+          ) : (
+            <div className="rounded-lg shadow p-8 text-center" style={{ backgroundColor: '#1e252b' }}>
+              <p className="text-gray-300">Nenhum lead encontrado com os filtros aplicados</p>
+            </div>
+          )
         ) : (
-          leads
-            .filter(l =>
-              l.empresa.toLowerCase().includes(searchTerm.toLowerCase()) ||
-              l.cnpj.includes(searchTerm) ||
-              (l.contato && l.contato.toLowerCase().includes(searchTerm.toLowerCase()))
-            )
-            .filter(l => filterStatus === 'TODOS' || l.status === filterStatus)
-            .filter(l => filterPrioridade === 'TODOS' || l.prioridade === filterPrioridade)
-            .filter(l => {
-              if (filterFollowup === 'ATRASADO') return l.proximoFollowup && l.proximoFollowup < formatDate();
-              if (filterFollowup === 'HOJE')     return l.proximoFollowup === formatDate();
-              return true;
-            })
-            .map(lead => (
-              <LeadCard key={lead.id} lead={lead} onClick={() => onSelectLead(lead)} />
-            ))
+          leads.map(lead => (
+            <LeadCard key={lead.id} lead={lead} onClick={() => onSelectLead(lead)} />
+          ))
         )}
       </div>
     </div>
@@ -2240,7 +2222,7 @@ const DashboardView = ({ leads, metrics, segmentos, sdrs }) => {
       {/* Segmentos */}
       {segmentoDistribution.length > 0 && (
         <div className="rounded-lg shadow p-6" style={{ backgroundColor: '#1e252b' }}>
-          <h3 className="text-xl font-bold text-gray-800 mb-4">Leads por Segmento</h3>
+          <h3 className="text-xl font-bold text-gray-200 mb-4">Leads por Segmento</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {segmentoDistribution.map((seg, idx) => (
               <div key={idx} className="p-4 rounded-lg flex justify-between items-center" style={{ backgroundColor: '#1a1f26' }}>
@@ -2257,7 +2239,7 @@ const DashboardView = ({ leads, metrics, segmentos, sdrs }) => {
       {/* Distribuição por SDR */}
       {ownerDistribution.length > 0 && (
         <div className="rounded-lg shadow p-6" style={{ backgroundColor: '#1e252b' }}>
-          <h3 className="text-xl font-bold text-gray-800 mb-4">Leads por SDR</h3>
+          <h3 className="text-xl font-bold text-gray-200 mb-4">Leads por SDR</h3>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {ownerDistribution.map((owner, idx) => (
               <div key={idx} className="bg-gradient-to-br from-primary to-secondary text-white p-4 rounded-lg flex justify-between items-center">
@@ -2274,7 +2256,7 @@ const DashboardView = ({ leads, metrics, segmentos, sdrs }) => {
       {/* Distribuição por Origem */}
       {origemDistribution.length > 0 && (
         <div className="rounded-lg shadow p-6" style={{ backgroundColor: '#1e252b' }}>
-          <h3 className="text-xl font-bold text-gray-800 mb-4">Leads por Origem</h3>
+          <h3 className="text-xl font-bold text-gray-200 mb-4">Leads por Origem</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {origemDistribution.map((origem, idx) => (
               <div key={idx} className="bg-accent p-4 rounded-lg flex justify-between items-center">
@@ -2320,7 +2302,7 @@ const DashboardView = ({ leads, metrics, segmentos, sdrs }) => {
 
       {/* Alertas */}
       <div className="rounded-lg shadow p-6" style={{ backgroundColor: '#1e252b' }}>
-        <h3 className="text-xl font-bold text-gray-800 mb-4">Alertas de Follow-up</h3>
+        <h3 className="text-xl font-bold text-gray-200 mb-4">Alertas de Follow-up</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="bg-yellow-50 border-l-4 border-yellow-500 p-4 rounded">
             <p className="text-yellow-800 font-medium">Follow-ups Hoje</p>
