@@ -872,7 +872,11 @@ const CRMAlinhatta = () => {
   // Exportar dados
   const exportLeads = (format = 'csv') => {
     if (format === 'csv') {
-      const headers = ['Empresa', 'CNPJ', 'Segmento', 'SDR Responsável', 'Origem', 'Contato', 'Cargo', 'Telefone', 'Email', 'Status', 'Prioridade', 'Pacote', 'Valor Potencial', 'Data Entrada', 'Última Interação', 'Próximo Follow-up', 'Tentativas'];
+      const headers = ['Empresa', 'CNPJ', 'Segmento', 'SDR Responsável', 'Origem', 'Contato', 'Cargo', 'Telefone', 'Email', 'Status', 'Prioridade', 'Tags', 'Pacote', 'Valor Potencial', 'Data Entrada', 'Última Interação', 'Próximo Follow-up', 'Tentativas', 'Motivo Perda', 'Observações', 'Histórico'];
+      const serializeHistorico = (hist) => {
+        if (!Array.isArray(hist) || hist.length === 0) return '';
+        return hist.map(h => `${h.data || ''}: ${h.nota || ''}`).join(' | ');
+      };
       const rows = leads.map(lead => [
         lead.empresa || '',
         formatCNPJ(lead.cnpj) || '',
@@ -885,17 +889,23 @@ const CRMAlinhatta = () => {
         lead.email || '',
         lead.status || '',
         lead.prioridade || '',
+        lead.tags || '',
         lead.pacoteInteresse || '',
         lead.valorpotencial || 0,
         lead.dataentrada || '',
         lead.ultimaInteracao || '',
         lead.proximoFollowup || '',
-        lead.tentativas || 0
+        lead.tentativas || 0,
+        getMotivoPerda(lead) || '',
+        lead.observacoes || '',
+        serializeHistorico(lead.historico)
       ]);
-      
+
+      // Escape CSV: aspas duplas viram "" e a célula toda fica entre aspas
+      const escapeCell = (cell) => `"${String(cell).replace(/"/g, '""')}"`;
       const csvContent = [
-        headers.join(','),
-        ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+        headers.map(escapeCell).join(','),
+        ...rows.map(row => row.map(escapeCell).join(','))
       ].join('\n');
       
       const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -1468,6 +1478,18 @@ const PipelineView = ({ leads, totalLeadsCount, searchTerm, setSearchTerm, filte
     }
   };
 
+  // Filtros colapsáveis no mobile (sempre abertos no desktop)
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const activeFiltersCount = [
+    filterStatus !== 'TODOS',
+    filterPrioridade !== 'TODOS',
+    filterSegmento !== 'TODOS',
+    filterOwner !== 'TODOS',
+    filterOrigem !== 'TODOS',
+    filterTag !== 'TODOS',
+    filterFollowup !== 'TODOS'
+  ].filter(Boolean).length;
+
   const followupsHoje = leads.filter(l => l.proximoFollowup === formatDate());
   const followupsAtrasados = leads.filter(l => l.proximoFollowup && l.proximoFollowup < formatDate());
 
@@ -1567,10 +1589,29 @@ const PipelineView = ({ leads, totalLeadsCount, searchTerm, setSearchTerm, filte
         <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-4 space-y-4">
           {/* Header com contador */}
           <div className="flex items-center justify-between border-b border-gray-200 pb-3">
-            <div>
-              <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Filtros</h3>
-              <p className="text-xs text-gray-500 mt-1">
-                {leads.length} {leads.length === 1 ? 'resultado' : 'resultados'}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setFiltersOpen(!filtersOpen)}
+                className="sm:hidden flex items-center gap-1 text-sm font-semibold text-gray-700"
+                aria-expanded={filtersOpen}
+              >
+                <span className="uppercase tracking-wide">Filtros</span>
+                {activeFiltersCount > 0 && (
+                  <span className="bg-primary text-white text-xs px-1.5 py-0.5 rounded-full font-bold">
+                    {activeFiltersCount}
+                  </span>
+                )}
+                <span className="text-gray-500 ml-1">{filtersOpen ? '▴' : '▾'}</span>
+              </button>
+              <div className="hidden sm:block">
+                <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Filtros</h3>
+                <p className="text-xs text-gray-500 mt-1">
+                  {leads.length} {leads.length === 1 ? 'resultado' : 'resultados'}
+                </p>
+              </div>
+              <p className="sm:hidden text-xs text-gray-500">
+                · {leads.length} {leads.length === 1 ? 'resultado' : 'resultados'}
               </p>
             </div>
             {(filterStatus !== 'TODOS' || filterPrioridade !== 'TODOS' || filterSegmento !== 'TODOS' || filterOwner !== 'TODOS' || filterOrigem !== 'TODOS' || filterTag !== 'TODOS' || filterFollowup !== 'TODOS' || searchTerm) && (
@@ -1592,8 +1633,8 @@ const PipelineView = ({ leads, totalLeadsCount, searchTerm, setSearchTerm, filte
             )}
           </div>
 
-          {/* Grid de filtros limpo e organizado */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+          {/* Grid de filtros limpo e organizado — colapsável no mobile */}
+          <div className={`${filtersOpen ? 'grid' : 'hidden'} sm:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3`}>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1.5">Status</label>
               <select
@@ -1681,8 +1722,8 @@ const PipelineView = ({ leads, totalLeadsCount, searchTerm, setSearchTerm, filte
             </div>
           </div>
 
-          {/* Ordenação em linha separada */}
-          <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
+          {/* Ordenação em linha separada — colapsável no mobile */}
+          <div className={`${filtersOpen ? 'flex' : 'hidden'} sm:flex items-center gap-3 pt-2 border-t border-gray-100 flex-wrap`}>
             <label className="text-xs font-medium text-gray-600">Ordenar por:</label>
             <select
               value={sortBy}
