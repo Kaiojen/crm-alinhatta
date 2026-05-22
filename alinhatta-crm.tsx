@@ -740,6 +740,77 @@ const CRMAlinhatta = () => {
     }
   };
 
+  // Avança o status para a próxima etapa do pipeline (NOVO → ANALISADO → ...)
+  // Retorna null se status atual é terminal (GANHO/PERDIDO) ou desconhecido
+  const getNextStatus = (currentStatus) => {
+    const order = STATUS_OPTIONS.map(s => s.value);
+    const idx = order.indexOf(currentStatus);
+    if (idx === -1 || idx >= order.length - 1) return null;
+    const next = order[idx + 1];
+    if (next === 'PERDIDO') return null;
+    return next;
+  };
+
+  // Ação rápida: avançar status
+  const quickAdvanceStatus = async (lead) => {
+    const next = getNextStatus(lead.status);
+    if (!next) return;
+    const updated = {
+      ...lead,
+      status: next,
+      historico: [
+        ...(lead.historico || []),
+        { data: formatDate(), nota: `Status avançado para ${STATUS_OPTIONS.find(s => s.value === next)?.label}` }
+      ].slice(-500)
+    };
+    try {
+      await updateLead(updated);
+    } catch (error) {
+      showNotification('Erro ao avançar status.', 'error');
+    }
+  };
+
+  // Ação rápida: adiar follow-up em N dias
+  const quickSnoozeFollowup = async (lead, dias = 7) => {
+    const base = lead.proximoFollowup && lead.proximoFollowup >= formatDate()
+      ? new Date(lead.proximoFollowup + 'T00:00:00')
+      : new Date();
+    base.setDate(base.getDate() + dias);
+    const novaData = base.toISOString().slice(0, 10);
+    const updated = {
+      ...lead,
+      proximoFollowup: novaData,
+      historico: [
+        ...(lead.historico || []),
+        { data: formatDate(), nota: `Follow-up adiado para ${new Date(novaData + 'T00:00:00').toLocaleDateString('pt-BR')}` }
+      ].slice(-500)
+    };
+    try {
+      await updateLead(updated);
+    } catch (error) {
+      showNotification('Erro ao adiar follow-up.', 'error');
+    }
+  };
+
+  // Ação rápida: marcar como perdido com motivo
+  const quickMarkLost = async (lead, motivo) => {
+    if (!motivo) return;
+    const updated = {
+      ...lead,
+      status: 'PERDIDO',
+      historico: [
+        ...(lead.historico || []),
+        { data: formatDate(), nota: `${MOTIVO_PERDA_PREFIX}${motivo}` }
+      ].slice(-500)
+    };
+    try {
+      await updateLead(updated);
+      showNotification('Lead marcado como perdido.', 'success');
+    } catch (error) {
+      showNotification('Erro ao marcar como perdido.', 'error');
+    }
+  };
+
   const deleteLead = async (leadId) => {
     const lead = leads.find(l => l.id === leadId);
     if (window.confirm(`Tem certeza que deseja excluir o lead "${lead?.empresa}"? Esta ação não pode ser desfeita.`)) {
@@ -1123,6 +1194,13 @@ const CRMAlinhatta = () => {
     .sort((a, b) => {
       let aValue, bValue;
       
+      const ultimaAtualizacao = (l) => {
+        if (l.historico && l.historico.length > 0) {
+          return l.historico[l.historico.length - 1].data || '';
+        }
+        return l.ultimaInteracao || l.dataentrada || '';
+      };
+
       if (sortBy === 'empresa') {
         aValue = a.empresa?.toLowerCase() || '';
         bValue = b.empresa?.toLowerCase() || '';
@@ -1132,6 +1210,9 @@ const CRMAlinhatta = () => {
       } else if (sortBy === 'dataentrada') {
         aValue = a.dataentrada || '';
         bValue = b.dataentrada || '';
+      } else if (sortBy === 'ultimaAtualizacao') {
+        aValue = ultimaAtualizacao(a);
+        bValue = ultimaAtualizacao(b);
       } else {
         aValue = a[sortBy] || '';
         bValue = b[sortBy] || '';
@@ -1280,6 +1361,10 @@ const CRMAlinhatta = () => {
           <PipelineView
             leads={filteredAndSortedLeads}
             totalLeadsCount={leads.length}
+            onAdvanceStatus={quickAdvanceStatus}
+            onSnoozeFollowup={quickSnoozeFollowup}
+            onMarkLost={quickMarkLost}
+            getNextStatus={getNextStatus}
             searchTerm={searchTerm}
             setSearchTerm={setSearchTerm}
             filterStatus={filterStatus}
@@ -1366,7 +1451,23 @@ const CRMAlinhatta = () => {
   );
 };
 
-const PipelineView = ({ leads, totalLeadsCount, searchTerm, setSearchTerm, filterStatus, setFilterStatus, filterPrioridade, setFilterPrioridade, filterSegmento, setFilterSegmento, filterOwner, setFilterOwner, filterOrigem, setFilterOrigem, filterTag, setFilterTag, filterFollowup, setFilterFollowup, sortBy, setSortBy, sortOrder, setSortOrder, onSelectLead, onAddLead, onImportLeads, onExportLeads, metrics, segmentos, sdrs }) => {
+const PipelineView = ({ leads, totalLeadsCount, searchTerm, setSearchTerm, filterStatus, setFilterStatus, filterPrioridade, setFilterPrioridade, filterSegmento, setFilterSegmento, filterOwner, setFilterOwner, filterOrigem, setFilterOrigem, filterTag, setFilterTag, filterFollowup, setFilterFollowup, sortBy, setSortBy, sortOrder, setSortOrder, onSelectLead, onAddLead, onImportLeads, onExportLeads, onAdvanceStatus, onSnoozeFollowup, onMarkLost, getNextStatus, metrics, segmentos, sdrs }) => {
+  const [lostModalLead, setLostModalLead] = useState(null);
+  const [motivoSelected, setMotivoSelected] = useState('');
+
+  const handleMarkLostRequest = (lead) => {
+    setMotivoSelected('');
+    setLostModalLead(lead);
+  };
+
+  const handleConfirmLost = () => {
+    if (motivoSelected && lostModalLead) {
+      onMarkLost(lostModalLead, motivoSelected);
+      setLostModalLead(null);
+      setMotivoSelected('');
+    }
+  };
+
   const followupsHoje = leads.filter(l => l.proximoFollowup === formatDate());
   const followupsAtrasados = leads.filter(l => l.proximoFollowup && l.proximoFollowup < formatDate());
 
@@ -1589,6 +1690,7 @@ const PipelineView = ({ leads, totalLeadsCount, searchTerm, setSearchTerm, filte
               className="px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-primary focus:border-primary bg-white hover:border-gray-400 transition"
             >
               <option value="dataentrada">Data de Entrada</option>
+              <option value="ultimaAtualizacao">Última Atualização</option>
               <option value="empresa">Empresa</option>
               <option value="valorpotencial">Valor Potencial</option>
               <option value="status">Status</option>
@@ -1625,26 +1727,114 @@ const PipelineView = ({ leads, totalLeadsCount, searchTerm, setSearchTerm, filte
             </div>
           )
         ) : (
-          leads.map(lead => (
-            <LeadCard key={lead.id} lead={lead} onClick={() => onSelectLead(lead)} />
-          ))
+          leads.map(lead => {
+            const next = getNextStatus ? getNextStatus(lead.status) : null;
+            const nextLabel = next ? STATUS_OPTIONS.find(s => s.value === next)?.label : null;
+            return (
+              <LeadCard
+                key={lead.id}
+                lead={lead}
+                onClick={() => onSelectLead(lead)}
+                onAdvanceStatus={onAdvanceStatus}
+                onSnoozeFollowup={onSnoozeFollowup}
+                onMarkLostRequest={handleMarkLostRequest}
+                nextStatusLabel={nextLabel}
+              />
+            );
+          })
         )}
       </div>
+
+      {/* Modal de motivo de perda (ação rápida) */}
+      {lostModalLead && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setLostModalLead(null)}
+        >
+          <div
+            className="rounded-lg shadow-xl max-w-md w-full p-6"
+            style={{ backgroundColor: '#1e252b' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold text-gray-200 mb-2" style={{ fontFamily: 'Montserrat, sans-serif' }}>
+              Marcar como Perdido
+            </h3>
+            <p className="text-sm text-gray-400 mb-4">
+              {lostModalLead.empresa}
+            </p>
+            <label className="block text-xs font-medium text-gray-300 mb-2">
+              Por que esse lead foi perdido?
+            </label>
+            <div className="space-y-2 mb-4">
+              {MOTIVOS_PERDA.map(m => (
+                <label
+                  key={m}
+                  className={`flex items-center gap-2 p-2 rounded cursor-pointer border transition ${
+                    motivoSelected === m
+                      ? 'bg-red-900/30 border-red-500 text-red-200'
+                      : 'bg-gray-800/50 border-gray-700 text-gray-300 hover:border-gray-500'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="motivo"
+                    value={m}
+                    checked={motivoSelected === m}
+                    onChange={() => setMotivoSelected(m)}
+                    className="accent-red-500"
+                  />
+                  <span className="text-sm">{m}</span>
+                </label>
+              ))}
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setLostModalLead(null)}
+                className="px-4 py-2 text-sm border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-700 transition"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirmLost}
+                disabled={!motivoSelected}
+                className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
-const LeadCard = ({ lead, onClick }) => {
+const LeadCard = ({ lead, onClick, onAdvanceStatus, onSnoozeFollowup, onMarkLostRequest, nextStatusLabel }) => {
   const status = STATUS_OPTIONS.find(s => s.value === lead.status);
   const prioridade = PRIORIDADE_OPTIONS.find(p => p.value === lead.prioridade);
   const isFollowupHoje = lead.proximoFollowup === formatDate();
   const isFollowupAtrasado = lead.proximoFollowup && lead.proximoFollowup < formatDate();
+  const isTerminal = lead.status === 'GANHO' || lead.status === 'PERDIDO';
+
+  // Calcula dias desde a última interação para detectar leads estagnados
+  const ultimaData = lead.historico && lead.historico.length > 0
+    ? lead.historico[lead.historico.length - 1].data
+    : (lead.dataentrada || null);
+  const diasSemInteracao = ultimaData
+    ? Math.floor((new Date(formatDate() + 'T00:00:00').getTime() - new Date(ultimaData + 'T00:00:00').getTime()) / (1000 * 60 * 60 * 24))
+    : null;
+  const isEstagnado = !isTerminal && diasSemInteracao !== null && diasSemInteracao >= 30;
+
+  const stopAndRun = (e, fn) => {
+    e.stopPropagation();
+    fn();
+  };
 
   return (
     <div
       onClick={onClick}
       className={`rounded-lg shadow hover:shadow-lg transition cursor-pointer p-4 sm:p-5 border-l-4 ${
-        isFollowupAtrasado ? 'border-red-500' : isFollowupHoje ? 'border-accent' : 'border-primary'
+        isFollowupAtrasado ? 'border-red-500' : isFollowupHoje ? 'border-accent' : isEstagnado ? 'border-gray-500' : 'border-primary'
       }`}
       style={{ backgroundColor: '#1e252b' }}
     >
@@ -1717,6 +1907,47 @@ const LeadCard = ({ lead, onClick }) => {
               </span>
             ) : null;
           })}
+        </div>
+      )}
+
+      {isEstagnado && (
+        <p className="text-xs text-gray-400 mt-2 italic">
+          💤 {diasSemInteracao} dias sem interação
+        </p>
+      )}
+
+      {!isTerminal && (onAdvanceStatus || onSnoozeFollowup || onMarkLostRequest) && (
+        <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-gray-700">
+          {onAdvanceStatus && nextStatusLabel && (
+            <button
+              type="button"
+              onClick={(e) => stopAndRun(e, () => onAdvanceStatus(lead))}
+              title={`Avançar para ${nextStatusLabel}`}
+              className="px-3 py-1.5 text-xs font-medium rounded-md bg-emerald-900/40 text-emerald-300 border border-emerald-700 hover:bg-emerald-900/60 transition"
+            >
+              ✓ Avançar → {nextStatusLabel}
+            </button>
+          )}
+          {onSnoozeFollowup && (
+            <button
+              type="button"
+              onClick={(e) => stopAndRun(e, () => onSnoozeFollowup(lead, 7))}
+              title="Adiar follow-up em 7 dias"
+              className="px-3 py-1.5 text-xs font-medium rounded-md bg-blue-900/40 text-blue-300 border border-blue-700 hover:bg-blue-900/60 transition"
+            >
+              📅 +7d
+            </button>
+          )}
+          {onMarkLostRequest && (
+            <button
+              type="button"
+              onClick={(e) => stopAndRun(e, () => onMarkLostRequest(lead))}
+              title="Marcar como perdido"
+              className="px-3 py-1.5 text-xs font-medium rounded-md bg-red-900/40 text-red-300 border border-red-700 hover:bg-red-900/60 transition ml-auto"
+            >
+              ❌ Perdido
+            </button>
+          )}
         </div>
       )}
     </div>
