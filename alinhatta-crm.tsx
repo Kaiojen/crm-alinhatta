@@ -225,6 +225,25 @@ const ORIGENS_LEAD = [
   'Indicação'
 ];
 
+const MOTIVOS_PERDA = [
+  'Preço',
+  'Sumiu / não respondeu',
+  'Foi pra concorrente',
+  'Timing ruim',
+  'Não era ICP',
+  'Sem budget',
+  'Outro'
+];
+
+const MOTIVO_PERDA_PREFIX = 'Motivo de perda: ';
+
+// Extrai o último motivo de perda registrado no histórico
+const getMotivoPerda = (lead) => {
+  if (!lead?.historico) return null;
+  const entry = [...lead.historico].reverse().find(h => h.nota && h.nota.startsWith(MOTIVO_PERDA_PREFIX));
+  return entry ? entry.nota.slice(MOTIVO_PERDA_PREFIX.length) : null;
+};
+
 // ============================================
 // FUNÇÕES UTILITÁRIAS (fora do componente)
 // ============================================
@@ -702,8 +721,6 @@ const CRMAlinhatta = () => {
     }
   };
 
-  // C2: async + await para garantir que a interação seja salva antes de continuar
-  // B2: .slice(-100) para limitar o histórico a 100 entradas
   const addInteracao = async (leadId, nota) => {
     const lead = leads.find(l => l.id === leadId);
     const updated = {
@@ -714,12 +731,83 @@ const CRMAlinhatta = () => {
       historico: [
         ...(lead.historico || []),
         { data: formatDate(), nota }
-      ].slice(-100)
+      ].slice(-500)
     };
     try {
       await updateLead(updated);
     } catch (error) {
       showNotification('Erro ao registrar interação. Tente novamente.', 'error');
+    }
+  };
+
+  // Avança o status para a próxima etapa do pipeline (NOVO → ANALISADO → ...)
+  // Retorna null se status atual é terminal (GANHO/PERDIDO) ou desconhecido
+  const getNextStatus = (currentStatus) => {
+    const order = STATUS_OPTIONS.map(s => s.value);
+    const idx = order.indexOf(currentStatus);
+    if (idx === -1 || idx >= order.length - 1) return null;
+    const next = order[idx + 1];
+    if (next === 'PERDIDO') return null;
+    return next;
+  };
+
+  // Ação rápida: avançar status
+  const quickAdvanceStatus = async (lead) => {
+    const next = getNextStatus(lead.status);
+    if (!next) return;
+    const updated = {
+      ...lead,
+      status: next,
+      historico: [
+        ...(lead.historico || []),
+        { data: formatDate(), nota: `Status avançado para ${STATUS_OPTIONS.find(s => s.value === next)?.label}` }
+      ].slice(-500)
+    };
+    try {
+      await updateLead(updated);
+    } catch (error) {
+      showNotification('Erro ao avançar status.', 'error');
+    }
+  };
+
+  // Ação rápida: adiar follow-up em N dias
+  const quickSnoozeFollowup = async (lead, dias = 7) => {
+    const base = lead.proximoFollowup && lead.proximoFollowup >= formatDate()
+      ? new Date(lead.proximoFollowup + 'T00:00:00')
+      : new Date();
+    base.setDate(base.getDate() + dias);
+    const novaData = base.toISOString().slice(0, 10);
+    const updated = {
+      ...lead,
+      proximoFollowup: novaData,
+      historico: [
+        ...(lead.historico || []),
+        { data: formatDate(), nota: `Follow-up adiado para ${new Date(novaData + 'T00:00:00').toLocaleDateString('pt-BR')}` }
+      ].slice(-500)
+    };
+    try {
+      await updateLead(updated);
+    } catch (error) {
+      showNotification('Erro ao adiar follow-up.', 'error');
+    }
+  };
+
+  // Ação rápida: marcar como perdido com motivo
+  const quickMarkLost = async (lead, motivo) => {
+    if (!motivo) return;
+    const updated = {
+      ...lead,
+      status: 'PERDIDO',
+      historico: [
+        ...(lead.historico || []),
+        { data: formatDate(), nota: `${MOTIVO_PERDA_PREFIX}${motivo}` }
+      ].slice(-500)
+    };
+    try {
+      await updateLead(updated);
+      showNotification('Lead marcado como perdido.', 'success');
+    } catch (error) {
+      showNotification('Erro ao marcar como perdido.', 'error');
     }
   };
 
@@ -784,7 +872,11 @@ const CRMAlinhatta = () => {
   // Exportar dados
   const exportLeads = (format = 'csv') => {
     if (format === 'csv') {
-      const headers = ['Empresa', 'CNPJ', 'Segmento', 'SDR Responsável', 'Origem', 'Contato', 'Cargo', 'Telefone', 'Email', 'Status', 'Prioridade', 'Pacote', 'Valor Potencial', 'Data Entrada', 'Última Interação', 'Próximo Follow-up', 'Tentativas'];
+      const headers = ['Empresa', 'CNPJ', 'Segmento', 'SDR Responsável', 'Origem', 'Contato', 'Cargo', 'Telefone', 'Email', 'Status', 'Prioridade', 'Tags', 'Pacote', 'Valor Potencial', 'Data Entrada', 'Última Interação', 'Próximo Follow-up', 'Tentativas', 'Motivo Perda', 'Observações', 'Histórico'];
+      const serializeHistorico = (hist) => {
+        if (!Array.isArray(hist) || hist.length === 0) return '';
+        return hist.map(h => `${h.data || ''}: ${h.nota || ''}`).join(' | ');
+      };
       const rows = leads.map(lead => [
         lead.empresa || '',
         formatCNPJ(lead.cnpj) || '',
@@ -797,17 +889,23 @@ const CRMAlinhatta = () => {
         lead.email || '',
         lead.status || '',
         lead.prioridade || '',
+        lead.tags || '',
         lead.pacoteInteresse || '',
         lead.valorpotencial || 0,
         lead.dataentrada || '',
         lead.ultimaInteracao || '',
         lead.proximoFollowup || '',
-        lead.tentativas || 0
+        lead.tentativas || 0,
+        getMotivoPerda(lead) || '',
+        lead.observacoes || '',
+        serializeHistorico(lead.historico)
       ]);
-      
+
+      // Escape CSV: aspas duplas viram "" e a célula toda fica entre aspas
+      const escapeCell = (cell) => `"${String(cell).replace(/"/g, '""')}"`;
       const csvContent = [
-        headers.join(','),
-        ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+        headers.map(escapeCell).join(','),
+        ...rows.map(row => row.map(escapeCell).join(','))
       ].join('\n');
       
       const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -1097,11 +1195,22 @@ const CRMAlinhatta = () => {
       const matchOwner = filterOwner === 'TODOS' || lead.owner === filterOwner;
       const matchOrigem = filterOrigem === 'TODOS' || lead.origem === filterOrigem;
       const matchTag = filterTag === 'TODOS' || parseTags(lead.tags || '').includes(filterTag);
-      return matchSearch && matchStatus && matchPrioridade && matchSegmento && matchOwner && matchOrigem && matchTag;
+      const matchFollowup =
+        filterFollowup === 'TODOS' ||
+        (filterFollowup === 'ATRASADO' && lead.proximoFollowup && lead.proximoFollowup < formatDate()) ||
+        (filterFollowup === 'HOJE'     && lead.proximoFollowup === formatDate());
+      return matchSearch && matchStatus && matchPrioridade && matchSegmento && matchOwner && matchOrigem && matchTag && matchFollowup;
     })
     .sort((a, b) => {
       let aValue, bValue;
       
+      const ultimaAtualizacao = (l) => {
+        if (l.historico && l.historico.length > 0) {
+          return l.historico[l.historico.length - 1].data || '';
+        }
+        return l.ultimaInteracao || l.dataentrada || '';
+      };
+
       if (sortBy === 'empresa') {
         aValue = a.empresa?.toLowerCase() || '';
         bValue = b.empresa?.toLowerCase() || '';
@@ -1111,6 +1220,9 @@ const CRMAlinhatta = () => {
       } else if (sortBy === 'dataentrada') {
         aValue = a.dataentrada || '';
         bValue = b.dataentrada || '';
+      } else if (sortBy === 'ultimaAtualizacao') {
+        aValue = ultimaAtualizacao(a);
+        bValue = ultimaAtualizacao(b);
       } else {
         aValue = a[sortBy] || '';
         bValue = b[sortBy] || '';
@@ -1258,6 +1370,11 @@ const CRMAlinhatta = () => {
         {view === 'pipeline' && !selectedLead && (
           <PipelineView
             leads={filteredAndSortedLeads}
+            totalLeadsCount={leads.length}
+            onAdvanceStatus={quickAdvanceStatus}
+            onSnoozeFollowup={quickSnoozeFollowup}
+            onMarkLost={quickMarkLost}
+            getNextStatus={getNextStatus}
             searchTerm={searchTerm}
             setSearchTerm={setSearchTerm}
             filterStatus={filterStatus}
@@ -1344,7 +1461,35 @@ const CRMAlinhatta = () => {
   );
 };
 
-const PipelineView = ({ leads, searchTerm, setSearchTerm, filterStatus, setFilterStatus, filterPrioridade, setFilterPrioridade, filterSegmento, setFilterSegmento, filterOwner, setFilterOwner, filterOrigem, setFilterOrigem, filterTag, setFilterTag, filterFollowup, setFilterFollowup, sortBy, setSortBy, sortOrder, setSortOrder, onSelectLead, onAddLead, onImportLeads, onExportLeads, metrics, segmentos, sdrs }) => {
+const PipelineView = ({ leads, totalLeadsCount, searchTerm, setSearchTerm, filterStatus, setFilterStatus, filterPrioridade, setFilterPrioridade, filterSegmento, setFilterSegmento, filterOwner, setFilterOwner, filterOrigem, setFilterOrigem, filterTag, setFilterTag, filterFollowup, setFilterFollowup, sortBy, setSortBy, sortOrder, setSortOrder, onSelectLead, onAddLead, onImportLeads, onExportLeads, onAdvanceStatus, onSnoozeFollowup, onMarkLost, getNextStatus, metrics, segmentos, sdrs }) => {
+  const [lostModalLead, setLostModalLead] = useState(null);
+  const [motivoSelected, setMotivoSelected] = useState('');
+
+  const handleMarkLostRequest = (lead) => {
+    setMotivoSelected('');
+    setLostModalLead(lead);
+  };
+
+  const handleConfirmLost = () => {
+    if (motivoSelected && lostModalLead) {
+      onMarkLost(lostModalLead, motivoSelected);
+      setLostModalLead(null);
+      setMotivoSelected('');
+    }
+  };
+
+  // Filtros colapsáveis no mobile (sempre abertos no desktop)
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const activeFiltersCount = [
+    filterStatus !== 'TODOS',
+    filterPrioridade !== 'TODOS',
+    filterSegmento !== 'TODOS',
+    filterOwner !== 'TODOS',
+    filterOrigem !== 'TODOS',
+    filterTag !== 'TODOS',
+    filterFollowup !== 'TODOS'
+  ].filter(Boolean).length;
+
   const followupsHoje = leads.filter(l => l.proximoFollowup === formatDate());
   const followupsAtrasados = leads.filter(l => l.proximoFollowup && l.proximoFollowup < formatDate());
 
@@ -1444,10 +1589,29 @@ const PipelineView = ({ leads, searchTerm, setSearchTerm, filterStatus, setFilte
         <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-4 space-y-4">
           {/* Header com contador */}
           <div className="flex items-center justify-between border-b border-gray-200 pb-3">
-            <div>
-              <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Filtros</h3>
-              <p className="text-xs text-gray-500 mt-1">
-                {leads.length} {leads.length === 1 ? 'resultado' : 'resultados'}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setFiltersOpen(!filtersOpen)}
+                className="sm:hidden flex items-center gap-1 text-sm font-semibold text-gray-700"
+                aria-expanded={filtersOpen}
+              >
+                <span className="uppercase tracking-wide">Filtros</span>
+                {activeFiltersCount > 0 && (
+                  <span className="bg-primary text-white text-xs px-1.5 py-0.5 rounded-full font-bold">
+                    {activeFiltersCount}
+                  </span>
+                )}
+                <span className="text-gray-500 ml-1">{filtersOpen ? '▴' : '▾'}</span>
+              </button>
+              <div className="hidden sm:block">
+                <h3 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Filtros</h3>
+                <p className="text-xs text-gray-500 mt-1">
+                  {leads.length} {leads.length === 1 ? 'resultado' : 'resultados'}
+                </p>
+              </div>
+              <p className="sm:hidden text-xs text-gray-500">
+                · {leads.length} {leads.length === 1 ? 'resultado' : 'resultados'}
               </p>
             </div>
             {(filterStatus !== 'TODOS' || filterPrioridade !== 'TODOS' || filterSegmento !== 'TODOS' || filterOwner !== 'TODOS' || filterOrigem !== 'TODOS' || filterTag !== 'TODOS' || filterFollowup !== 'TODOS' || searchTerm) && (
@@ -1469,8 +1633,8 @@ const PipelineView = ({ leads, searchTerm, setSearchTerm, filterStatus, setFilte
             )}
           </div>
 
-          {/* Grid de filtros limpo e organizado */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+          {/* Grid de filtros limpo e organizado — colapsável no mobile */}
+          <div className={`${filtersOpen ? 'grid' : 'hidden'} sm:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3`}>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1.5">Status</label>
               <select
@@ -1558,8 +1722,8 @@ const PipelineView = ({ leads, searchTerm, setSearchTerm, filterStatus, setFilte
             </div>
           </div>
 
-          {/* Ordenação em linha separada */}
-          <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
+          {/* Ordenação em linha separada — colapsável no mobile */}
+          <div className={`${filtersOpen ? 'flex' : 'hidden'} sm:flex items-center gap-3 pt-2 border-t border-gray-100 flex-wrap`}>
             <label className="text-xs font-medium text-gray-600">Ordenar por:</label>
             <select
               value={sortBy}
@@ -1567,6 +1731,7 @@ const PipelineView = ({ leads, searchTerm, setSearchTerm, filterStatus, setFilte
               className="px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-primary focus:border-primary bg-white hover:border-gray-400 transition"
             >
               <option value="dataentrada">Data de Entrada</option>
+              <option value="ultimaAtualizacao">Última Atualização</option>
               <option value="empresa">Empresa</option>
               <option value="valorpotencial">Valor Potencial</option>
               <option value="status">Status</option>
@@ -1585,65 +1750,132 @@ const PipelineView = ({ leads, searchTerm, setSearchTerm, filterStatus, setFilte
       {/* Lista de Leads */}
       <div className="space-y-3">
         {leads.length === 0 ? (
-          <div className="rounded-lg shadow p-12 text-center" style={{ backgroundColor: '#1e252b' }}>
-            <p className="text-gray-300 text-lg mb-4">Nenhum lead cadastrado ainda</p>
-            <button
-              onClick={onAddLead}
-              className="bg-primary text-white px-6 py-4 rounded-lg hover:bg-primary-dark transition inline-flex items-center justify-center gap-2 text-base"
-              style={{ fontFamily: 'Montserrat, sans-serif' }}
-            >
-              <Plus className="w-5 h-5" />
-              Adicionar Primeiro Lead
-            </button>
-          </div>
-        ) : leads.length > 0 && leads.filter(l =>
-            l.empresa.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            l.cnpj.includes(searchTerm) ||
-            (l.contato && l.contato.toLowerCase().includes(searchTerm.toLowerCase()))
-          ).filter(l => filterStatus === 'TODOS' || l.status === filterStatus)
-          .filter(l => filterPrioridade === 'TODOS' || l.prioridade === filterPrioridade)
-          .filter(l => {
-            if (filterFollowup === 'ATRASADO') return l.proximoFollowup && l.proximoFollowup < formatDate();
-            if (filterFollowup === 'HOJE')     return l.proximoFollowup === formatDate();
-            return true;
-          }).length === 0 ? (
-          <div className="rounded-lg shadow p-8 text-center" style={{ backgroundColor: '#1e252b' }}>
-            <p className="text-gray-300">Nenhum lead encontrado com os filtros aplicados</p>
-          </div>
+          totalLeadsCount === 0 ? (
+            <div className="rounded-lg shadow p-12 text-center" style={{ backgroundColor: '#1e252b' }}>
+              <p className="text-gray-300 text-lg mb-4">Nenhum lead cadastrado ainda</p>
+              <button
+                onClick={onAddLead}
+                className="bg-primary text-white px-6 py-4 rounded-lg hover:bg-primary-dark transition inline-flex items-center justify-center gap-2 text-base"
+                style={{ fontFamily: 'Montserrat, sans-serif' }}
+              >
+                <Plus className="w-5 h-5" />
+                Adicionar Primeiro Lead
+              </button>
+            </div>
+          ) : (
+            <div className="rounded-lg shadow p-8 text-center" style={{ backgroundColor: '#1e252b' }}>
+              <p className="text-gray-300">Nenhum lead encontrado com os filtros aplicados</p>
+            </div>
+          )
         ) : (
-          leads
-            .filter(l =>
-              l.empresa.toLowerCase().includes(searchTerm.toLowerCase()) ||
-              l.cnpj.includes(searchTerm) ||
-              (l.contato && l.contato.toLowerCase().includes(searchTerm.toLowerCase()))
-            )
-            .filter(l => filterStatus === 'TODOS' || l.status === filterStatus)
-            .filter(l => filterPrioridade === 'TODOS' || l.prioridade === filterPrioridade)
-            .filter(l => {
-              if (filterFollowup === 'ATRASADO') return l.proximoFollowup && l.proximoFollowup < formatDate();
-              if (filterFollowup === 'HOJE')     return l.proximoFollowup === formatDate();
-              return true;
-            })
-            .map(lead => (
-              <LeadCard key={lead.id} lead={lead} onClick={() => onSelectLead(lead)} />
-            ))
+          leads.map(lead => {
+            const next = getNextStatus ? getNextStatus(lead.status) : null;
+            const nextLabel = next ? STATUS_OPTIONS.find(s => s.value === next)?.label : null;
+            return (
+              <LeadCard
+                key={lead.id}
+                lead={lead}
+                onClick={() => onSelectLead(lead)}
+                onAdvanceStatus={onAdvanceStatus}
+                onSnoozeFollowup={onSnoozeFollowup}
+                onMarkLostRequest={handleMarkLostRequest}
+                nextStatusLabel={nextLabel}
+              />
+            );
+          })
         )}
       </div>
+
+      {/* Modal de motivo de perda (ação rápida) */}
+      {lostModalLead && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setLostModalLead(null)}
+        >
+          <div
+            className="rounded-lg shadow-xl max-w-md w-full p-6"
+            style={{ backgroundColor: '#1e252b' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold text-gray-200 mb-2" style={{ fontFamily: 'Montserrat, sans-serif' }}>
+              Marcar como Perdido
+            </h3>
+            <p className="text-sm text-gray-400 mb-4">
+              {lostModalLead.empresa}
+            </p>
+            <label className="block text-xs font-medium text-gray-300 mb-2">
+              Por que esse lead foi perdido?
+            </label>
+            <div className="space-y-2 mb-4">
+              {MOTIVOS_PERDA.map(m => (
+                <label
+                  key={m}
+                  className={`flex items-center gap-2 p-2 rounded cursor-pointer border transition ${
+                    motivoSelected === m
+                      ? 'bg-red-900/30 border-red-500 text-red-200'
+                      : 'bg-gray-800/50 border-gray-700 text-gray-300 hover:border-gray-500'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="motivo"
+                    value={m}
+                    checked={motivoSelected === m}
+                    onChange={() => setMotivoSelected(m)}
+                    className="accent-red-500"
+                  />
+                  <span className="text-sm">{m}</span>
+                </label>
+              ))}
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setLostModalLead(null)}
+                className="px-4 py-2 text-sm border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-700 transition"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirmLost}
+                disabled={!motivoSelected}
+                className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
-const LeadCard = ({ lead, onClick }) => {
+const LeadCard = ({ lead, onClick, onAdvanceStatus, onSnoozeFollowup, onMarkLostRequest, nextStatusLabel }) => {
   const status = STATUS_OPTIONS.find(s => s.value === lead.status);
   const prioridade = PRIORIDADE_OPTIONS.find(p => p.value === lead.prioridade);
   const isFollowupHoje = lead.proximoFollowup === formatDate();
   const isFollowupAtrasado = lead.proximoFollowup && lead.proximoFollowup < formatDate();
+  const isTerminal = lead.status === 'GANHO' || lead.status === 'PERDIDO';
+
+  // Calcula dias desde a última interação para detectar leads estagnados
+  const ultimaData = lead.historico && lead.historico.length > 0
+    ? lead.historico[lead.historico.length - 1].data
+    : (lead.dataentrada || null);
+  const diasSemInteracao = ultimaData
+    ? Math.floor((new Date(formatDate() + 'T00:00:00').getTime() - new Date(ultimaData + 'T00:00:00').getTime()) / (1000 * 60 * 60 * 24))
+    : null;
+  const isEstagnado = !isTerminal && diasSemInteracao !== null && diasSemInteracao >= 30;
+
+  const stopAndRun = (e, fn) => {
+    e.stopPropagation();
+    fn();
+  };
 
   return (
     <div
       onClick={onClick}
       className={`rounded-lg shadow hover:shadow-lg transition cursor-pointer p-4 sm:p-5 border-l-4 ${
-        isFollowupAtrasado ? 'border-red-500' : isFollowupHoje ? 'border-accent' : 'border-primary'
+        isFollowupAtrasado ? 'border-red-500' : isFollowupHoje ? 'border-accent' : isEstagnado ? 'border-gray-500' : 'border-primary'
       }`}
       style={{ backgroundColor: '#1e252b' }}
     >
@@ -1696,6 +1928,12 @@ const LeadCard = ({ lead, onClick }) => {
         </div>
       )}
 
+      {lead.status === 'PERDIDO' && getMotivoPerda(lead) && (
+        <p className="text-sm text-red-300 mt-2 font-medium">
+          ❌ Motivo: {getMotivoPerda(lead)}
+        </p>
+      )}
+
       {lead.notaUltimaInteracao && (
         <p className="text-sm text-neutral-text mt-2 italic truncate">"{lead.notaUltimaInteracao}"</p>
       )}
@@ -1710,6 +1948,47 @@ const LeadCard = ({ lead, onClick }) => {
               </span>
             ) : null;
           })}
+        </div>
+      )}
+
+      {isEstagnado && (
+        <p className="text-xs text-gray-400 mt-2 italic">
+          💤 {diasSemInteracao} dias sem interação
+        </p>
+      )}
+
+      {!isTerminal && (onAdvanceStatus || onSnoozeFollowup || onMarkLostRequest) && (
+        <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-gray-700">
+          {onAdvanceStatus && nextStatusLabel && (
+            <button
+              type="button"
+              onClick={(e) => stopAndRun(e, () => onAdvanceStatus(lead))}
+              title={`Avançar para ${nextStatusLabel}`}
+              className="px-3 py-1.5 text-xs font-medium rounded-md bg-emerald-900/40 text-emerald-300 border border-emerald-700 hover:bg-emerald-900/60 transition"
+            >
+              ✓ Avançar → {nextStatusLabel}
+            </button>
+          )}
+          {onSnoozeFollowup && (
+            <button
+              type="button"
+              onClick={(e) => stopAndRun(e, () => onSnoozeFollowup(lead, 7))}
+              title="Adiar follow-up em 7 dias"
+              className="px-3 py-1.5 text-xs font-medium rounded-md bg-blue-900/40 text-blue-300 border border-blue-700 hover:bg-blue-900/60 transition"
+            >
+              📅 +7d
+            </button>
+          )}
+          {onMarkLostRequest && (
+            <button
+              type="button"
+              onClick={(e) => stopAndRun(e, () => onMarkLostRequest(lead))}
+              title="Marcar como perdido"
+              className="px-3 py-1.5 text-xs font-medium rounded-md bg-red-900/40 text-red-300 border border-red-700 hover:bg-red-900/60 transition ml-auto"
+            >
+              ❌ Perdido
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -1731,9 +2010,29 @@ const LeadDetailView = ({ lead, onBack, onUpdate, onAddInteracao, onDelete, form
   }, [lead]);
 
   const handleSave = async () => {
+    if (editedLead.status === 'PERDIDO') {
+      const motivoAtual = editedLead.motivoPerdidoPending || getMotivoPerda(editedLead);
+      if (!motivoAtual) {
+        alert('Selecione o motivo da perda antes de salvar.');
+        return;
+      }
+    }
+
     setIsSaving(true);
     try {
-      await onUpdate(editedLead);
+      let leadToSave = { ...editedLead };
+      if (editedLead.status === 'PERDIDO' && editedLead.motivoPerdidoPending) {
+        const novoMotivo = editedLead.motivoPerdidoPending;
+        const motivoAnterior = getMotivoPerda(lead);
+        if (novoMotivo !== motivoAnterior) {
+          leadToSave.historico = [
+            ...(editedLead.historico || []),
+            { data: formatDate(), nota: `${MOTIVO_PERDA_PREFIX}${novoMotivo}` }
+          ].slice(-500);
+        }
+      }
+      delete leadToSave.motivoPerdidoPending;
+      await onUpdate(leadToSave);
       setIsEditing(false);
     } finally {
       setIsSaving(false);
@@ -1998,6 +2297,24 @@ const EditLeadForm = ({ lead, onChange, onSave, isSaving, sdrs }) => (
           <option key={s.value} value={s.value}>{s.label}{s.subtitle ? ` — ${s.subtitle}` : ''}</option>
         ))}
       </select>
+      {lead.status === 'PERDIDO' && (
+        <div className="mt-2">
+          <label className="block text-xs font-medium text-red-300 mb-1">Motivo da perda *</label>
+          <select
+            value={lead.motivoPerdidoPending || getMotivoPerda(lead) || ''}
+            onChange={(e) => onChange({ ...lead, motivoPerdidoPending: e.target.value })}
+            className="w-full px-4 py-2 border border-red-500/50 rounded-lg focus:ring-2 focus:ring-red-500 text-base bg-red-950/20 text-gray-200"
+          >
+            <option value="">Selecione o motivo...</option>
+            {MOTIVOS_PERDA.map(m => (
+              <option key={m} value={m}>{m}</option>
+            ))}
+          </select>
+          {getMotivoPerda(lead) && !lead.motivoPerdidoPending && (
+            <p className="text-xs text-gray-400 mt-1">Motivo registrado: <span className="text-red-300">{getMotivoPerda(lead)}</span></p>
+          )}
+        </div>
+      )}
     </div>
     <div>
       <label className="block text-sm font-medium text-gray-300 mb-1">Prioridade</label>
@@ -2154,25 +2471,79 @@ const DashboardView = ({ leads, metrics, segmentos, sdrs }) => {
     color: status.color
   }));
 
+  // Conversão = ganhos / (ganhos + perdidos) — só leads com desfecho
+  const calcConversao = (subset) => {
+    const ganhos = subset.filter(l => l.status === 'GANHO').length;
+    const perdidos = subset.filter(l => l.status === 'PERDIDO').length;
+    const desfecho = ganhos + perdidos;
+    return {
+      total: subset.length,
+      ganhos,
+      perdidos,
+      desfecho,
+      taxa: desfecho > 0 ? ((ganhos / desfecho) * 100).toFixed(1) : null
+    };
+  };
+
   const segmentoDistribution = segmentos.map(seg => ({
     label: seg,
-    count: leads.filter(l => l.segmento === seg).length
-  })).filter(s => s.count > 0);
+    ...calcConversao(leads.filter(l => l.segmento === seg))
+  })).filter(s => s.total > 0).sort((a, b) => b.total - a.total);
 
   const ownerDistribution = sdrs.map(sdr => ({
     label: sdr,
-    count: leads.filter(l => l.owner === sdr).length
-  })).filter(s => s.count > 0);
+    ...calcConversao(leads.filter(l => l.owner === sdr))
+  })).filter(s => s.total > 0).sort((a, b) => b.total - a.total);
 
   const origensReais = [...new Set([...ORIGENS_LEAD, ...leads.map(l => l.origem).filter(Boolean)])];
   const origemDistribution = origensReais.map(origem => ({
     label: ORIGENS_LEAD.includes(origem) ? origem : `${origem} (legado)`,
-    count: leads.filter(l => l.origem === origem).length
-  })).filter(s => s.count > 0);
+    ...calcConversao(leads.filter(l => l.origem === origem))
+  })).filter(s => s.total > 0).sort((a, b) => b.total - a.total);
 
-  const taxaConversao = leads.length > 0 
-    ? ((metrics.ganhos / leads.length) * 100).toFixed(1)
+  // Motivos de perda agregados a partir do histórico
+  const motivosDePerda = leads
+    .filter(l => l.status === 'PERDIDO')
+    .map(l => getMotivoPerda(l))
+    .filter(Boolean)
+    .reduce((acc, m) => {
+      acc[m] = (acc[m] || 0) + 1;
+      return acc;
+    }, {});
+  const motivosEntries = Object.entries(motivosDePerda).sort((a, b) => b[1] - a[1]);
+  const totalPerdidosComMotivo = motivosEntries.reduce((s, [, c]) => s + c, 0);
+  const perdidosSemMotivo = metrics.perdidos - totalPerdidosComMotivo;
+
+  // Conversão geral baseada em desfecho real (ganhos / (ganhos + perdidos))
+  const desfechoTotal = metrics.ganhos + metrics.perdidos;
+  const taxaConversao = desfechoTotal > 0
+    ? ((metrics.ganhos / desfechoTotal) * 100).toFixed(1)
     : 0;
+
+  // Tempo médio até GANHO (dias entre dataentrada e última interação)
+  const diasEntreISO = (inicio, fim) => {
+    if (!inicio || !fim) return null;
+    const ms = new Date(fim + 'T00:00:00').getTime() - new Date(inicio + 'T00:00:00').getTime();
+    return Math.max(0, Math.floor(ms / (1000 * 60 * 60 * 24)));
+  };
+  const tempoAteGanho = (() => {
+    const ganhos = leads.filter(l => l.status === 'GANHO');
+    const tempos = ganhos.map(l => {
+      const ultima = l.historico && l.historico.length > 0
+        ? l.historico[l.historico.length - 1].data
+        : l.ultimaInteracao;
+      return diasEntreISO(l.dataentrada, ultima);
+    }).filter(t => t !== null);
+    if (tempos.length === 0) return null;
+    return Math.round(tempos.reduce((a, b) => a + b, 0) / tempos.length);
+  })();
+  const tempoEmAberto = (() => {
+    const abertos = leads.filter(l => l.status !== 'GANHO' && l.status !== 'PERDIDO');
+    const hoje = formatDate();
+    const tempos = abertos.map(l => diasEntreISO(l.dataentrada, hoje)).filter(t => t !== null);
+    if (tempos.length === 0) return null;
+    return Math.round(tempos.reduce((a, b) => a + b, 0) / tempos.length);
+  })();
 
   return (
     <div className="space-y-6">
@@ -2188,9 +2559,11 @@ const DashboardView = ({ leads, metrics, segmentos, sdrs }) => {
         />
         <MetricCard
           title="Taxa de Conversão"
-          value={`${taxaConversao}%`}
+          value={desfechoTotal > 0 ? `${taxaConversao}%` : '—'}
           icon={<TrendingUp className="w-6 h-6" />}
-          subtitle={`${metrics.ganhos} ganhos de ${leads.length} leads`}
+          subtitle={desfechoTotal > 0
+            ? `${metrics.ganhos} ganhos / ${desfechoTotal} desfechos`
+            : 'Aguardando primeiros desfechos'}
           color="text-primary"
         />
         <MetricCard
@@ -2206,6 +2579,28 @@ const DashboardView = ({ leads, metrics, segmentos, sdrs }) => {
           icon={<TrendingUp className="w-6 h-6" />}
           subtitle="Potencial total"
           color="text-emerald-600"
+        />
+      </div>
+
+      {/* Tempo Médio */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+        <MetricCard
+          title="Tempo Médio até Ganho"
+          value={tempoAteGanho !== null ? `${tempoAteGanho} dias` : '—'}
+          icon={<TrendingUp className="w-6 h-6" />}
+          subtitle={tempoAteGanho !== null
+            ? `Média de ${metrics.ganhos} contrato(s) fechado(s)`
+            : 'Aguardando primeiros ganhos'}
+          color="text-emerald-400"
+        />
+        <MetricCard
+          title="Tempo Médio em Aberto"
+          value={tempoEmAberto !== null ? `${tempoEmAberto} dias` : '—'}
+          icon={<Calendar className="w-6 h-6" />}
+          subtitle={tempoEmAberto !== null
+            ? `Leads no pipeline há essa média`
+            : 'Sem leads abertos'}
+          color="text-blue-400"
         />
       </div>
 
@@ -2237,54 +2632,63 @@ const DashboardView = ({ leads, metrics, segmentos, sdrs }) => {
         </div>
       </div>
 
-      {/* Segmentos */}
-      {segmentoDistribution.length > 0 && (
-        <div className="rounded-lg shadow p-6" style={{ backgroundColor: '#1e252b' }}>
-          <h3 className="text-xl font-bold text-gray-800 mb-4">Leads por Segmento</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {segmentoDistribution.map((seg, idx) => (
-              <div key={idx} className="p-4 rounded-lg flex justify-between items-center" style={{ backgroundColor: '#1a1f26' }}>
-                <span className="font-medium text-gray-200">{seg.label}</span>
-                <span className="bg-primary text-white px-3 py-1 rounded-full font-bold" style={{ fontFamily: 'Montserrat, sans-serif' }}>
-                  {seg.count}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Distribuição por SDR */}
+      {/* Conversão por SDR */}
       {ownerDistribution.length > 0 && (
         <div className="rounded-lg shadow p-6" style={{ backgroundColor: '#1e252b' }}>
-          <h3 className="text-xl font-bold text-gray-800 mb-4">Leads por SDR</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {ownerDistribution.map((owner, idx) => (
-              <div key={idx} className="bg-gradient-to-br from-primary to-secondary text-white p-4 rounded-lg flex justify-between items-center">
-                <span className="font-medium" style={{ fontFamily: 'Montserrat, sans-serif' }}>{owner.label}</span>
-                <span className="bg-white text-primary px-3 py-1 rounded-full font-bold" style={{ fontFamily: 'Montserrat, sans-serif' }}>
-                  {owner.count}
-                </span>
-              </div>
-            ))}
-          </div>
+          <h3 className="text-xl font-bold text-gray-200 mb-4">Performance por SDR</h3>
+          <ConversionTable rows={ownerDistribution} />
         </div>
       )}
 
-      {/* Distribuição por Origem */}
+      {/* Conversão por Origem */}
       {origemDistribution.length > 0 && (
         <div className="rounded-lg shadow p-6" style={{ backgroundColor: '#1e252b' }}>
-          <h3 className="text-xl font-bold text-gray-800 mb-4">Leads por Origem</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {origemDistribution.map((origem, idx) => (
-              <div key={idx} className="bg-accent p-4 rounded-lg flex justify-between items-center">
-                <span className="font-medium text-neutral-dark">{origem.label}</span>
-                <span className="bg-primary text-white px-3 py-1 rounded-full font-bold" style={{ fontFamily: 'Montserrat, sans-serif' }}>
-                  {origem.count}
-                </span>
-              </div>
-            ))}
-          </div>
+          <h3 className="text-xl font-bold text-gray-200 mb-4">Performance por Origem</h3>
+          <ConversionTable rows={origemDistribution} />
+        </div>
+      )}
+
+      {/* Conversão por Segmento */}
+      {segmentoDistribution.length > 0 && (
+        <div className="rounded-lg shadow p-6" style={{ backgroundColor: '#1e252b' }}>
+          <h3 className="text-xl font-bold text-gray-200 mb-4">Performance por Segmento</h3>
+          <ConversionTable rows={segmentoDistribution} />
+        </div>
+      )}
+
+      {/* Motivos de Perda */}
+      {metrics.perdidos > 0 && (
+        <div className="rounded-lg shadow p-6" style={{ backgroundColor: '#1e252b' }}>
+          <h3 className="text-xl font-bold text-gray-200 mb-4">Motivos de Perda</h3>
+          {motivosEntries.length === 0 ? (
+            <p className="text-gray-400 text-sm">
+              {metrics.perdidos} lead(s) perdido(s), nenhum com motivo registrado ainda.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {motivosEntries.map(([motivo, count]) => (
+                <div key={motivo} className="flex items-center gap-3">
+                  <span className="text-gray-200 w-48 truncate" title={motivo}>{motivo}</span>
+                  <div className="flex-1 bg-gray-800 rounded-full h-6 relative overflow-hidden">
+                    <div
+                      className="bg-red-500 h-full rounded-full flex items-center justify-end pr-2 text-white text-xs font-medium"
+                      style={{ width: `${(count / metrics.perdidos) * 100}%`, minWidth: '2rem' }}
+                    >
+                      {count}
+                    </div>
+                  </div>
+                  <span className="text-gray-400 text-sm w-12 text-right">
+                    {((count / metrics.perdidos) * 100).toFixed(0)}%
+                  </span>
+                </div>
+              ))}
+              {perdidosSemMotivo > 0 && (
+                <p className="text-xs text-gray-500 italic mt-2">
+                  {perdidosSemMotivo} perdido(s) sem motivo registrado
+                </p>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -2320,7 +2724,7 @@ const DashboardView = ({ leads, metrics, segmentos, sdrs }) => {
 
       {/* Alertas */}
       <div className="rounded-lg shadow p-6" style={{ backgroundColor: '#1e252b' }}>
-        <h3 className="text-xl font-bold text-gray-800 mb-4">Alertas de Follow-up</h3>
+        <h3 className="text-xl font-bold text-gray-200 mb-4">Alertas de Follow-up</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="bg-yellow-50 border-l-4 border-yellow-500 p-4 rounded">
             <p className="text-yellow-800 font-medium">Follow-ups Hoje</p>
@@ -2337,6 +2741,37 @@ const DashboardView = ({ leads, metrics, segmentos, sdrs }) => {
     </div>
   );
 };
+
+const ConversionTable = ({ rows }) => (
+  <div className="overflow-x-auto">
+    <table className="w-full text-sm">
+      <thead>
+        <tr className="text-gray-400 text-xs uppercase tracking-wide border-b border-gray-700">
+          <th className="text-left py-2 pr-3 font-medium">Origem</th>
+          <th className="text-right py-2 px-3 font-medium">Leads</th>
+          <th className="text-right py-2 px-3 font-medium">Ganhos</th>
+          <th className="text-right py-2 px-3 font-medium">Perdidos</th>
+          <th className="text-right py-2 pl-3 font-medium">Conversão</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row, idx) => (
+          <tr key={idx} className="border-b border-gray-800 last:border-0">
+            <td className="py-2 pr-3 text-gray-200">{row.label}</td>
+            <td className="py-2 px-3 text-right text-gray-300">{row.total}</td>
+            <td className="py-2 px-3 text-right text-emerald-400">{row.ganhos}</td>
+            <td className="py-2 px-3 text-right text-red-400">{row.perdidos}</td>
+            <td className="py-2 pl-3 text-right font-bold">
+              {row.taxa !== null
+                ? <span className={parseFloat(row.taxa) >= 50 ? 'text-emerald-300' : parseFloat(row.taxa) >= 25 ? 'text-yellow-300' : 'text-red-300'}>{row.taxa}%</span>
+                : <span className="text-gray-500 text-xs">—</span>}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+);
 
 const MetricCard = ({ title, value, icon, subtitle = '', color = "text-gray-200" }) => (
   <div className="rounded-lg shadow p-6" style={{ backgroundColor: '#1e252b' }}>
