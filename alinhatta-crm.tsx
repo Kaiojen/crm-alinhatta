@@ -2312,6 +2312,19 @@ const ViewLeadDetails = ({ lead }) => {
           </div>
         </div>
       )}
+      {lead.observacoes && (
+        <div className="md:col-span-2">
+          <div className="p-4 rounded-lg" style={{ backgroundColor: '#1a1f26' }}>
+            <p className="text-sm text-gray-400 mb-2 flex items-center gap-2">
+              <FileText className="w-4 h-4" />
+              <strong>Observações</strong>
+            </p>
+            <p className="text-gray-200 whitespace-pre-wrap">
+              <ExpandableText text={lead.observacoes} maxChars={200} />
+            </p>
+          </div>
+        </div>
+      )}
       {lead.notaUltimaInteracao && (
         <div className="md:col-span-2">
           <DetailField label="Última Nota" value={lead.notaUltimaInteracao} />
