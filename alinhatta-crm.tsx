@@ -741,6 +741,21 @@ const CRMAlinhatta = () => {
     }
   };
 
+  // Limpa todos os filtros e aplica os recebidos, depois leva pro Pipeline.
+  // Usado pelos cards/linhas clicáveis do Dashboard.
+  const navigateToPipelineFiltered = (patch = {}) => {
+    setSearchTerm(patch.searchTerm || '');
+    setFilterStatus(patch.filterStatus || 'TODOS');
+    setFilterPrioridade(patch.filterPrioridade || 'TODOS');
+    setFilterSegmento(patch.filterSegmento || 'TODOS');
+    setFilterOwner(patch.filterOwner || 'TODOS');
+    setFilterOrigem(patch.filterOrigem || 'TODOS');
+    setFilterTag(patch.filterTag || 'TODOS');
+    setFilterFollowup(patch.filterFollowup || 'TODOS');
+    setSelectedLead(null);
+    setView('pipeline');
+  };
+
   // Avança o status para a próxima etapa do pipeline (NOVO → ANALISADO → ...)
   // Retorna null se status atual é terminal (GANHO/PERDIDO) ou desconhecido
   const getNextStatus = (currentStatus) => {
@@ -1190,7 +1205,7 @@ const CRMAlinhatta = () => {
         (lead.telefone && lead.telefone.includes(searchTerm)) ||
         (lead.segmento && lead.segmento.toLowerCase().includes(searchLower)) ||
         (lead.cargo && lead.cargo.toLowerCase().includes(searchLower));
-      const matchStatus = filterStatus === 'TODOS' || lead.status === filterStatus;
+      const matchStatus = filterStatus === 'TODOS' || filterStatus.split(',').includes(lead.status);
       const matchPrioridade = filterPrioridade === 'TODOS' || lead.prioridade === filterPrioridade;
       const matchSegmento = filterSegmento === 'TODOS' || lead.segmento === filterSegmento;
       const matchOwner = filterOwner === 'TODOS' || lead.owner === filterOwner;
@@ -1419,7 +1434,7 @@ const CRMAlinhatta = () => {
         )}
 
         {view === 'dashboard' && (
-          <DashboardView leads={leads} metrics={metrics} segmentos={SEGMENTOS} sdrs={sdrs} />
+          <DashboardView leads={leads} metrics={metrics} segmentos={SEGMENTOS} sdrs={sdrs} onNavigateFiltered={navigateToPipelineFiltered} />
         )}
       </main>
 
@@ -1549,14 +1564,32 @@ const PipelineView = ({ leads, totalLeadsCount, searchTerm, setSearchTerm, filte
       <div className="rounded-lg shadow p-3 sm:p-4 space-y-3 sm:space-y-4" style={{ backgroundColor: '#1e252b', borderTop: '4px solid #1a7b60' }}>
         <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
           <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5 pointer-events-none" />
             <input
-              type="text"
+              type="search"
+              inputMode="search"
+              enterKeyHint="search"
               placeholder="Buscar por empresa, CNPJ ou contato..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-base"
+              onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+              className="w-full pl-10 pr-24 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-base"
             />
+            {searchTerm && (
+              <>
+                <span className="absolute right-10 top-1/2 transform -translate-y-1/2 text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded-full">
+                  {leads.length}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  aria-label="Limpar busca"
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 p-1 rounded-full text-gray-400 hover:text-gray-200 hover:bg-gray-700/40 transition"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </>
+            )}
           </div>
           <div className="grid grid-cols-2 sm:flex gap-2 sm:gap-0">
             <button
@@ -2522,8 +2555,10 @@ const EditLeadForm = ({ lead, onChange, onSave, isSaving, sdrs }) => (
   </div>
 );
 
-const DashboardView = ({ leads, metrics, segmentos, sdrs }) => {
+const DashboardView = ({ leads, metrics, segmentos, sdrs, onNavigateFiltered }) => {
+  const goTo = onNavigateFiltered || (() => {});
   const statusDistribution = STATUS_OPTIONS.map(status => ({
+    value: status.value,
     label: status.label,
     count: leads.filter(l => l.status === status.value).length,
     color: status.color
@@ -2613,7 +2648,8 @@ const DashboardView = ({ leads, metrics, segmentos, sdrs }) => {
           title="Total de Leads"
           value={metrics.total}
           icon={<BarChart3 className="w-6 h-6" />}
-          subtitle="No pipeline"
+          subtitle="Ver todos no pipeline"
+          onClick={() => goTo({})}
         />
         <MetricCard
           title="Taxa de Conversão"
@@ -2623,20 +2659,23 @@ const DashboardView = ({ leads, metrics, segmentos, sdrs }) => {
             ? `${metrics.ganhos} ganhos / ${desfechoTotal} desfechos`
             : 'Aguardando primeiros desfechos'}
           color="text-primary"
+          onClick={desfechoTotal > 0 ? () => goTo({ filterStatus: 'GANHO,PERDIDO' }) : undefined}
         />
         <MetricCard
           title="Em Negociação"
           value={metrics.emNegociacao}
           icon={<Briefcase className="w-6 h-6" />}
-          subtitle="Propostas enviadas"
+          subtitle="Propostas + negociação"
           color="text-orange-600"
+          onClick={metrics.emNegociacao > 0 ? () => goTo({ filterStatus: 'PROPOSTA_ENVIADA,NEGOCIACAO' }) : undefined}
         />
         <MetricCard
           title="Valor Pipeline"
           value={metrics.valorPipeline >= 100000 ? `R$ ${(metrics.valorPipeline / 1000).toFixed(1)}k` : metrics.valorPipeline.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
           icon={<TrendingUp className="w-6 h-6" />}
-          subtitle="Potencial total"
+          subtitle="Ver leads que compõem"
           color="text-emerald-600"
+          onClick={() => goTo({})}
         />
       </div>
 
@@ -2650,6 +2689,7 @@ const DashboardView = ({ leads, metrics, segmentos, sdrs }) => {
             ? `Média de ${metrics.ganhos} contrato(s) fechado(s)`
             : 'Aguardando primeiros ganhos'}
           color="text-emerald-400"
+          onClick={metrics.ganhos > 0 ? () => goTo({ filterStatus: 'GANHO' }) : undefined}
         />
         <MetricCard
           title="Tempo Médio em Aberto"
@@ -2659,6 +2699,7 @@ const DashboardView = ({ leads, metrics, segmentos, sdrs }) => {
             ? `Leads no pipeline há essa média`
             : 'Sem leads abertos'}
           color="text-blue-400"
+          onClick={tempoEmAberto !== null ? () => goTo({}) : undefined}
         />
       </div>
 
@@ -2667,7 +2708,12 @@ const DashboardView = ({ leads, metrics, segmentos, sdrs }) => {
         <h3 className="text-xl font-bold text-gray-200 mb-4">Distribuição por Status</h3>
         <div className="space-y-3">
           {statusDistribution.map((status, idx) => (
-            <div key={idx} className="flex items-center gap-4">
+            <div
+              key={idx}
+              className={`flex items-center gap-4 rounded-md px-2 -mx-2 ${status.count > 0 ? 'cursor-pointer hover:bg-gray-800/50 transition' : ''}`}
+              onClick={status.count > 0 ? () => goTo({ filterStatus: status.value }) : undefined}
+              title={status.count > 0 ? `Ver leads com status ${status.label}` : undefined}
+            >
               <span className={`px-3 py-1 rounded-full text-sm font-medium ${status.color} w-48`}>
                 {status.label}
               </span>
@@ -2694,7 +2740,10 @@ const DashboardView = ({ leads, metrics, segmentos, sdrs }) => {
       {ownerDistribution.length > 0 && (
         <div className="rounded-lg shadow p-6" style={{ backgroundColor: '#1e252b' }}>
           <h3 className="text-xl font-bold text-gray-200 mb-4">Performance por SDR</h3>
-          <ConversionTable rows={ownerDistribution} />
+          <ConversionTable
+            rows={ownerDistribution}
+            onRowClick={(row) => goTo({ filterOwner: row.label })}
+          />
         </div>
       )}
 
@@ -2702,7 +2751,10 @@ const DashboardView = ({ leads, metrics, segmentos, sdrs }) => {
       {origemDistribution.length > 0 && (
         <div className="rounded-lg shadow p-6" style={{ backgroundColor: '#1e252b' }}>
           <h3 className="text-xl font-bold text-gray-200 mb-4">Performance por Origem</h3>
-          <ConversionTable rows={origemDistribution} />
+          <ConversionTable
+            rows={origemDistribution}
+            onRowClick={(row) => goTo({ filterOrigem: row.label.replace(/ \(legado\)$/, '') })}
+          />
         </div>
       )}
 
@@ -2710,7 +2762,10 @@ const DashboardView = ({ leads, metrics, segmentos, sdrs }) => {
       {segmentoDistribution.length > 0 && (
         <div className="rounded-lg shadow p-6" style={{ backgroundColor: '#1e252b' }}>
           <h3 className="text-xl font-bold text-gray-200 mb-4">Performance por Segmento</h3>
-          <ConversionTable rows={segmentoDistribution} />
+          <ConversionTable
+            rows={segmentoDistribution}
+            onRowClick={(row) => goTo({ filterSegmento: row.label })}
+          />
         </div>
       )}
 
@@ -2725,7 +2780,12 @@ const DashboardView = ({ leads, metrics, segmentos, sdrs }) => {
           ) : (
             <div className="space-y-2">
               {motivosEntries.map(([motivo, count]) => (
-                <div key={motivo} className="flex items-center gap-3">
+                <div
+                  key={motivo}
+                  className="flex items-center gap-3 cursor-pointer hover:bg-gray-800/50 rounded px-2 -mx-2 transition"
+                  onClick={() => goTo({ filterStatus: 'PERDIDO' })}
+                  title="Ver leads perdidos no pipeline"
+                >
                   <span className="text-gray-200 w-48 truncate" title={motivo}>{motivo}</span>
                   <div className="flex-1 bg-gray-800 rounded-full h-6 relative overflow-hidden">
                     <div
@@ -2752,7 +2812,11 @@ const DashboardView = ({ leads, metrics, segmentos, sdrs }) => {
 
       {/* Performance Semanal */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-lg shadow p-6">
+        <div
+          className={`bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-lg shadow p-6 ${metrics.novos > 0 ? 'cursor-pointer hover:shadow-xl hover:ring-2 hover:ring-blue-300 transition' : ''}`}
+          onClick={metrics.novos > 0 ? () => goTo({ filterStatus: 'NOVO' }) : undefined}
+          title={metrics.novos > 0 ? 'Ver leads novos' : undefined}
+        >
           <div className="flex items-center justify-between mb-2">
             <h4 className="font-medium">Novos Leads</h4>
             <FileText className="w-8 h-8" />
@@ -2761,7 +2825,11 @@ const DashboardView = ({ leads, metrics, segmentos, sdrs }) => {
           <p className="text-blue-100 text-sm">Aguardando primeiro contato</p>
         </div>
 
-        <div className="bg-gradient-to-br from-primary to-secondary text-white rounded-lg shadow p-6">
+        <div
+          className={`bg-gradient-to-br from-primary to-secondary text-white rounded-lg shadow p-6 ${metrics.ganhos > 0 ? 'cursor-pointer hover:shadow-xl hover:ring-2 hover:ring-emerald-300 transition' : ''}`}
+          onClick={metrics.ganhos > 0 ? () => goTo({ filterStatus: 'GANHO' }) : undefined}
+          title={metrics.ganhos > 0 ? 'Ver leads ganhos' : undefined}
+        >
           <div className="flex items-center justify-between mb-2">
             <h4 className="font-medium" style={{ fontFamily: 'Montserrat, sans-serif' }}>Vitórias</h4>
             <CheckCircle className="w-8 h-8" />
@@ -2770,7 +2838,11 @@ const DashboardView = ({ leads, metrics, segmentos, sdrs }) => {
           <p className="text-white text-sm opacity-90">Contratos fechados</p>
         </div>
 
-        <div className="bg-gradient-to-br from-red-500 to-red-600 text-white rounded-lg shadow p-6">
+        <div
+          className={`bg-gradient-to-br from-red-500 to-red-600 text-white rounded-lg shadow p-6 ${metrics.perdidos > 0 ? 'cursor-pointer hover:shadow-xl hover:ring-2 hover:ring-red-300 transition' : ''}`}
+          onClick={metrics.perdidos > 0 ? () => goTo({ filterStatus: 'PERDIDO' }) : undefined}
+          title={metrics.perdidos > 0 ? 'Ver leads perdidos' : undefined}
+        >
           <div className="flex items-center justify-between mb-2">
             <h4 className="font-medium">Perdidos</h4>
             <X className="w-8 h-8" />
@@ -2800,7 +2872,7 @@ const DashboardView = ({ leads, metrics, segmentos, sdrs }) => {
   );
 };
 
-const ConversionTable = ({ rows }) => (
+const ConversionTable = ({ rows, onRowClick }) => (
   <div className="overflow-x-auto">
     <table className="w-full text-sm">
       <thead>
@@ -2813,34 +2885,52 @@ const ConversionTable = ({ rows }) => (
         </tr>
       </thead>
       <tbody>
-        {rows.map((row, idx) => (
-          <tr key={idx} className="border-b border-gray-800 last:border-0">
-            <td className="py-2 pr-3 text-gray-200">{row.label}</td>
-            <td className="py-2 px-3 text-right text-gray-300">{row.total}</td>
-            <td className="py-2 px-3 text-right text-emerald-400">{row.ganhos}</td>
-            <td className="py-2 px-3 text-right text-red-400">{row.perdidos}</td>
-            <td className="py-2 pl-3 text-right font-bold">
-              {row.taxa !== null
-                ? <span className={parseFloat(row.taxa) >= 50 ? 'text-emerald-300' : parseFloat(row.taxa) >= 25 ? 'text-yellow-300' : 'text-red-300'}>{row.taxa}%</span>
-                : <span className="text-gray-500 text-xs">—</span>}
-            </td>
-          </tr>
-        ))}
+        {rows.map((row, idx) => {
+          const clickable = typeof onRowClick === 'function';
+          return (
+            <tr
+              key={idx}
+              className={`border-b border-gray-800 last:border-0 ${clickable ? 'cursor-pointer hover:bg-gray-800/50 transition' : ''}`}
+              onClick={clickable ? () => onRowClick(row) : undefined}
+              title={clickable ? `Ver leads desta linha no pipeline` : undefined}
+            >
+              <td className="py-2 pr-3 text-gray-200">{row.label}</td>
+              <td className="py-2 px-3 text-right text-gray-300">{row.total}</td>
+              <td className="py-2 px-3 text-right text-emerald-400">{row.ganhos}</td>
+              <td className="py-2 px-3 text-right text-red-400">{row.perdidos}</td>
+              <td className="py-2 pl-3 text-right font-bold">
+                {row.taxa !== null
+                  ? <span className={parseFloat(row.taxa) >= 50 ? 'text-emerald-300' : parseFloat(row.taxa) >= 25 ? 'text-yellow-300' : 'text-red-300'}>{row.taxa}%</span>
+                  : <span className="text-gray-500 text-xs">—</span>}
+              </td>
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   </div>
 );
 
-const MetricCard = ({ title, value, icon, subtitle = '', color = "text-gray-200" }) => (
-  <div className="rounded-lg shadow p-6" style={{ backgroundColor: '#1e252b' }}>
-    <div className="flex items-center justify-between mb-2">
-      <p className="text-sm text-gray-300">{title}</p>
-      <div className="text-gray-400">{icon}</div>
+const MetricCard = ({ title, value, icon, subtitle = '', color = "text-gray-200", onClick }) => {
+  const interactive = typeof onClick === 'function';
+  return (
+    <div
+      className={`rounded-lg shadow p-6 ${interactive ? 'cursor-pointer hover:ring-1 hover:ring-primary/60 hover:shadow-lg transition' : ''}`}
+      style={{ backgroundColor: '#1e252b' }}
+      onClick={interactive ? onClick : undefined}
+      role={interactive ? 'button' : undefined}
+      tabIndex={interactive ? 0 : undefined}
+      onKeyDown={interactive ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } } : undefined}
+    >
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-sm text-gray-300">{title}</p>
+        <div className="text-gray-400">{icon}</div>
+      </div>
+      <p className={`text-3xl font-bold ${color}`}>{value}</p>
+      {subtitle && <p className="text-sm text-gray-400 mt-1">{subtitle}</p>}
     </div>
-    <p className={`text-3xl font-bold ${color}`}>{value}</p>
-    {subtitle && <p className="text-sm text-gray-400 mt-1">{subtitle}</p>}
-  </div>
-);
+  );
+};
 
 const AddLeadModal = ({ onClose, onAdd, segmentos, sdrs }) => {
   const [formData, setFormData] = useState({
