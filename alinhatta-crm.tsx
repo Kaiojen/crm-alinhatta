@@ -709,26 +709,26 @@ const CRMAlinhatta = () => {
     // Validar CNPJ
     if (!validateCNPJ(updatedLead.cnpj)) {
       showNotification('CNPJ inválido. Verifique os dígitos verificadores.', 'error');
-      return;
+      return false;
     }
 
     // Verificar duplicatas (excluindo o próprio lead)
     if (checkDuplicate(updatedLead.cnpj, updatedLead.id)) {
       showNotification('Este CNPJ já está cadastrado em outro lead!', 'error');
-      return;
+      return false;
     }
 
     // Validar email se fornecido
     if (updatedLead.email && !validateEmail(updatedLead.email)) {
       showNotification('Email inválido. Verifique o formato.', 'error');
-      return;
+      return false;
     }
 
     const leadToUpdate = {
       ...updatedLead,
       cnpj: updatedLead.cnpj.replace(/\D/g, '') // Remove formatação
     };
-    
+
     try {
       // C1: usar dado retornado pelo Supabase para manter estado sincronizado com o banco
       const savedLead = await supabaseHelper.updateLead(leadToUpdate);
@@ -737,9 +737,11 @@ const CRMAlinhatta = () => {
       setLeads(updated);
       setSelectedLead(finalLead);
       showNotification('Lead atualizado com sucesso!', 'success');
+      return true;
     } catch (error) {
       console.error('Erro ao atualizar lead:', error);
       showNotification('Erro ao atualizar lead. Tente novamente.', 'error');
+      return false;
     }
   };
 
@@ -2168,8 +2170,8 @@ const LeadDetailView = ({ lead, onBack, onUpdate, onAddInteracao, onDelete, form
         }
       }
       delete leadToSave.motivoPerdidoPending;
-      await onUpdate(leadToSave);
-      setIsEditing(false);
+      const ok = await onUpdate(leadToSave);
+      if (ok !== false) setIsEditing(false);
     } finally {
       setIsSaving(false);
     }
@@ -2583,6 +2585,7 @@ const EditLeadForm = ({ lead, onChange, onSave, isSaving, sdrs }) => (
       <label className="block text-sm font-medium text-gray-300 mb-1">Próximo Follow-up</label>
       <input
         type="date"
+        min={formatDate()}
         value={lead.proximoFollowup || ''}
         onChange={(e) => onChange({ ...lead, proximoFollowup: e.target.value })}
         className="w-full px-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-base"
@@ -3248,6 +3251,7 @@ const AddLeadModal = ({ onClose, onAdd, segmentos, sdrs }) => {
               <label className="block text-sm font-medium text-gray-300 mb-1">Primeiro Follow-up</label>
               <input
                 type="date"
+                min={formatDate()}
                 value={formData.proximoFollowup}
                 onChange={(e) => setFormData({ ...formData, proximoFollowup: e.target.value })}
                 className="w-full px-4 py-3 sm:py-2 h-12 sm:h-auto border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary text-base"
