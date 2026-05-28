@@ -2061,10 +2061,10 @@ const LeadCard = ({ lead, onClick, onAdvanceStatus, onSnoozeFollowup, onMarkLost
     >
       <div className="flex justify-between items-start mb-3 gap-2">
         <div className="flex-1 min-w-0">
-          <h3 className="font-bold text-lg text-neutral-dark break-words" style={{ fontFamily: 'Montserrat, sans-serif' }}>{lead.empresa}</h3>
-          <p className="text-sm text-neutral-text">{lead.segmento}</p>
+          <h3 className="font-bold text-xl sm:text-lg text-neutral-dark break-words" style={{ fontFamily: 'Montserrat, sans-serif' }}>{lead.empresa}</h3>
+          <p className="text-base sm:text-sm text-neutral-text">{lead.segmento}</p>
           {lead.owner && (
-            <p className="text-xs text-primary font-medium mt-1">{lead.owner}</p>
+            <p className="text-sm sm:text-xs text-primary font-medium mt-1">{lead.owner}</p>
           )}
         </div>
         <div className="flex items-start gap-1">
@@ -2078,11 +2078,6 @@ const LeadCard = ({ lead, onClick, onAdvanceStatus, onSnoozeFollowup, onMarkLost
             <span className={`px-2 py-1 rounded text-xs font-bold border ${prioridade?.color} ${lead.prioridade === 'URGENTE' ? 'animate-pulse ring-1 ring-rose-400' : ''}`}>
               {lead.prioridade === 'URGENTE' ? '🔴 ' : ''}{prioridade?.label}
             </span>
-            {lead.origem && (
-              <span className="px-2 py-1 rounded text-xs font-medium bg-accent text-neutral-dark">
-                {lead.origem}
-              </span>
-            )}
           </div>
           {showMenu && (
             <LeadCardMenu
@@ -2098,7 +2093,7 @@ const LeadCard = ({ lead, onClick, onAdvanceStatus, onSnoozeFollowup, onMarkLost
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 text-sm text-neutral-text mb-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 text-base sm:text-sm text-neutral-text mb-3">
         <div className="flex items-center gap-2">
           <Phone className="w-4 h-4 flex-shrink-0" />
           {lead.telefone ? (
