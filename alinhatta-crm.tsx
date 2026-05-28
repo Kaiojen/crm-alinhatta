@@ -838,6 +838,25 @@ const CRMAlinhatta = () => {
     }
   };
 
+  // Ação rápida: reativar lead estagnado (registra interação hoje e agenda follow-up pra hoje)
+  const quickReactivate = async (lead) => {
+    const hoje = formatDate();
+    const updated = {
+      ...lead,
+      ultimaInteracao: hoje,
+      proximoFollowup: hoje,
+      historico: [
+        ...(lead.historico || []),
+        { data: hoje, nota: 'Lead reativado' }
+      ].slice(-500)
+    };
+    try {
+      await updateLead(updated);
+    } catch (error) {
+      showNotification('Erro ao reativar lead.', 'error');
+    }
+  };
+
   // Ação rápida: marcar como perdido com motivo
   const quickMarkLost = async (lead, motivo) => {
     if (!motivo) return;
@@ -1257,6 +1276,16 @@ const CRMAlinhatta = () => {
         return l.ultimaInteracao || l.dataentrada || '';
       };
 
+      // "Mais frios": parados há mais tempo primeiro; leads fechados (GANHO/PERDIDO) vão pro fim
+      if (sortBy === 'maisFrios') {
+        const aTerm = a.status === 'GANHO' || a.status === 'PERDIDO';
+        const bTerm = b.status === 'GANHO' || b.status === 'PERDIDO';
+        if (aTerm !== bTerm) return aTerm ? 1 : -1;
+        const av = ultimaAtualizacao(a);
+        const bv = ultimaAtualizacao(b);
+        return av < bv ? -1 : av > bv ? 1 : 0;
+      }
+
       if (sortBy === 'empresa') {
         aValue = a.empresa?.toLowerCase() || '';
         bValue = b.empresa?.toLowerCase() || '';
@@ -1412,6 +1441,7 @@ const CRMAlinhatta = () => {
             onAdvanceStatus={quickAdvanceStatus}
             onSnoozeFollowup={quickSnoozeFollowup}
             onMarkLost={quickMarkLost}
+            onReactivate={quickReactivate}
             getNextStatus={getNextStatus}
             searchTerm={searchTerm}
             setSearchTerm={setSearchTerm}
@@ -1499,7 +1529,7 @@ const CRMAlinhatta = () => {
   );
 };
 
-const PipelineView = ({ leads, totalLeadsCount, searchTerm, setSearchTerm, filterStatus, setFilterStatus, filterPrioridade, setFilterPrioridade, filterSegmento, setFilterSegmento, filterOwner, setFilterOwner, filterOrigem, setFilterOrigem, filterTag, setFilterTag, filterFollowup, setFilterFollowup, sortBy, setSortBy, sortOrder, setSortOrder, onSelectLead, onAddLead, onImportLeads, onExportLeads, onAdvanceStatus, onSnoozeFollowup, onMarkLost, getNextStatus, metrics, segmentos, sdrs }) => {
+const PipelineView = ({ leads, totalLeadsCount, searchTerm, setSearchTerm, filterStatus, setFilterStatus, filterPrioridade, setFilterPrioridade, filterSegmento, setFilterSegmento, filterOwner, setFilterOwner, filterOrigem, setFilterOrigem, filterTag, setFilterTag, filterFollowup, setFilterFollowup, sortBy, setSortBy, sortOrder, setSortOrder, onSelectLead, onAddLead, onImportLeads, onExportLeads, onAdvanceStatus, onSnoozeFollowup, onMarkLost, onReactivate, getNextStatus, metrics, segmentos, sdrs }) => {
   const [lostModalLead, setLostModalLead] = useState(null);
   const [motivoSelected, setMotivoSelected] = useState('');
 
@@ -1788,6 +1818,7 @@ const PipelineView = ({ leads, totalLeadsCount, searchTerm, setSearchTerm, filte
             >
               <option value="dataentrada">Data de Entrada</option>
               <option value="ultimaAtualizacao">Última Atualização</option>
+              <option value="maisFrios">Mais frios (parados há mais tempo)</option>
               <option value="empresa">Empresa</option>
               <option value="valorpotencial">Valor Potencial</option>
               <option value="status">Status</option>
@@ -1835,6 +1866,7 @@ const PipelineView = ({ leads, totalLeadsCount, searchTerm, setSearchTerm, filte
                 onAdvanceStatus={onAdvanceStatus}
                 onSnoozeFollowup={onSnoozeFollowup}
                 onMarkLostRequest={handleMarkLostRequest}
+                onReactivate={onReactivate}
                 nextStatusLabel={nextLabel}
               />
             );
@@ -1908,7 +1940,7 @@ const PipelineView = ({ leads, totalLeadsCount, searchTerm, setSearchTerm, filte
 
 // Menu kebab (⋮) de ações rápidas no card. Aparece no canto superior direito;
 // abre popover com Avançar / +7d / Perdido. Fecha por clique fora ou Esc.
-const LeadCardMenu = ({ lead, nextStatusLabel, onAdvanceStatus, onSnoozeFollowup, onMarkLostRequest }) => {
+const LeadCardMenu = ({ lead, nextStatusLabel, onAdvanceStatus, onSnoozeFollowup, onMarkLostRequest, onReactivate, isEstagnado }) => {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -1970,6 +2002,17 @@ const LeadCardMenu = ({ lead, nextStatusLabel, onAdvanceStatus, onSnoozeFollowup
                 <span>Adiar follow-up 7 dias</span>
               </button>
             )}
+            {onReactivate && isEstagnado && (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={(e) => handleItem(e, () => onReactivate(lead))}
+                className="w-full text-left px-3 py-2 text-sm text-amber-300 hover:bg-amber-900/30 transition flex items-center gap-2"
+              >
+                <span className="w-5 text-center">🔄</span>
+                <span>Reativar (interação hoje)</span>
+              </button>
+            )}
             {onMarkLostRequest && (
               <>
                 <div className="border-t border-gray-700 my-1" />
@@ -1991,7 +2034,7 @@ const LeadCardMenu = ({ lead, nextStatusLabel, onAdvanceStatus, onSnoozeFollowup
   );
 };
 
-const LeadCard = ({ lead, onClick, onAdvanceStatus, onSnoozeFollowup, onMarkLostRequest, nextStatusLabel }) => {
+const LeadCard = ({ lead, onClick, onAdvanceStatus, onSnoozeFollowup, onMarkLostRequest, onReactivate, nextStatusLabel }) => {
   const status = STATUS_OPTIONS.find(s => s.value === lead.status);
   const prioridade = PRIORIDADE_OPTIONS.find(p => p.value === lead.prioridade);
   const isFollowupHoje = lead.proximoFollowup === formatDate();
@@ -2006,7 +2049,7 @@ const LeadCard = ({ lead, onClick, onAdvanceStatus, onSnoozeFollowup, onMarkLost
     ? Math.floor((new Date(formatDate() + 'T00:00:00').getTime() - new Date(ultimaData + 'T00:00:00').getTime()) / (1000 * 60 * 60 * 24))
     : null;
   const isEstagnado = !isTerminal && diasSemInteracao !== null && diasSemInteracao >= 30;
-  const showMenu = !isTerminal && (onAdvanceStatus || onSnoozeFollowup || onMarkLostRequest);
+  const showMenu = !isTerminal && (onAdvanceStatus || onSnoozeFollowup || onMarkLostRequest || (onReactivate && isEstagnado));
 
   return (
     <div
@@ -2048,6 +2091,8 @@ const LeadCard = ({ lead, onClick, onAdvanceStatus, onSnoozeFollowup, onMarkLost
               onAdvanceStatus={onAdvanceStatus}
               onSnoozeFollowup={onSnoozeFollowup}
               onMarkLostRequest={onMarkLostRequest}
+              onReactivate={onReactivate}
+              isEstagnado={isEstagnado}
             />
           )}
         </div>
