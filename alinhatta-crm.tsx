@@ -328,8 +328,29 @@ const validateEmail = (email) => {
   return re.test(email);
 };
 
-// Utilitário de formatação de data
-const formatDate = (date = new Date()) => date.toISOString().split('T')[0];
+// Utilitário de formatação de data (local, evita deslocamento de fuso do toISOString)
+const formatDate = (date = new Date()) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
+// Exibição pt-BR ancorando datas YYYY-MM-DD em meia-noite local (evita -1 dia)
+const formatDateBR = (str) => {
+  if (!str) return '-';
+  const s = String(str).length === 10 ? str + 'T00:00:00' : str;
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? '-' : d.toLocaleDateString('pt-BR');
+};
+
+// Link de WhatsApp a partir do telefone (assume DDI 55 se não houver)
+const waLink = (telefone) => {
+  const digits = (telefone || '').replace(/\D/g, '');
+  if (!digits) return null;
+  const full = digits.length <= 11 ? '55' + digits : digits;
+  return `https://wa.me/${full}`;
+};
 
 // Helper do Supabase - Singleton para evitar múltiplas instâncias
 let supabaseClientInstance = null;
@@ -792,13 +813,13 @@ const CRMAlinhatta = () => {
       ? new Date(lead.proximoFollowup + 'T00:00:00')
       : new Date();
     base.setDate(base.getDate() + dias);
-    const novaData = base.toISOString().slice(0, 10);
+    const novaData = formatDate(base);
     const updated = {
       ...lead,
       proximoFollowup: novaData,
       historico: [
         ...(lead.historico || []),
-        { data: formatDate(), nota: `Follow-up adiado para ${new Date(novaData + 'T00:00:00').toLocaleDateString('pt-BR')}` }
+        { data: formatDate(), nota: `Follow-up adiado para ${formatDateBR(novaData)}` }
       ].slice(-500)
     };
     try {
@@ -2033,12 +2054,36 @@ const LeadCard = ({ lead, onClick, onAdvanceStatus, onSnoozeFollowup, onMarkLost
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 text-sm text-neutral-text mb-3">
         <div className="flex items-center gap-2">
-          <Phone className="w-4 h-4" />
-          <span>{lead.telefone || 'Sem telefone'}</span>
+          <Phone className="w-4 h-4 flex-shrink-0" />
+          {lead.telefone ? (
+            <a
+              href={waLink(lead.telefone)}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="text-green-400 hover:underline"
+              title="Abrir no WhatsApp"
+            >
+              {lead.telefone}
+            </a>
+          ) : (
+            <span>Sem telefone</span>
+          )}
         </div>
         <div className="flex items-center gap-2">
-          <Mail className="w-4 h-4" />
-          <span className="truncate">{lead.email || 'Sem email'}</span>
+          <Mail className="w-4 h-4 flex-shrink-0" />
+          {lead.email ? (
+            <a
+              href={`mailto:${lead.email}`}
+              onClick={(e) => e.stopPropagation()}
+              className="truncate hover:underline"
+              title="Enviar e-mail"
+            >
+              {lead.email}
+            </a>
+          ) : (
+            <span className="truncate">Sem email</span>
+          )}
         </div>
       </div>
 
@@ -2049,7 +2094,7 @@ const LeadCard = ({ lead, onClick, onAdvanceStatus, onSnoozeFollowup, onMarkLost
           <Calendar className="w-4 h-4" />
           <span>
             {isFollowupAtrasado ? '🔴 Atrasado: ' : isFollowupHoje ? '🟡 Hoje: ' : 'Próximo follow-up: '}
-            {new Date(lead.proximoFollowup).toLocaleDateString('pt-BR')}
+            {formatDateBR(lead.proximoFollowup)}
           </span>
         </div>
       )}
@@ -2235,7 +2280,7 @@ const LeadDetailView = ({ lead, onBack, onUpdate, onAddInteracao, onDelete, form
               {[...lead.historico].reverse().map((item, idx) => (
                 <div key={idx} className="p-4 rounded-lg" style={{ backgroundColor: '#1a1f26' }}>
                   <p className="text-sm text-gray-400 mb-1">
-                    {new Date(item.data).toLocaleDateString('pt-BR')}
+                    {formatDateBR(item.data)}
                   </p>
                   <p className="text-gray-200">{item.nota}</p>
                 </div>
@@ -2291,14 +2336,30 @@ const ViewLeadDetails = ({ lead }) => {
       )}
       <DetailField label="Contato Principal" value={lead.contato} icon={null} />
       <DetailField label="Cargo" value={lead.cargo} icon={null} />
-      <DetailField label="Telefone" value={lead.telefone} icon={<Phone className="w-4 h-4" />} />
-      <DetailField label="Email" value={lead.email} icon={<Mail className="w-4 h-4" />} />
+      <DetailField
+        label="Telefone"
+        value={lead.telefone ? (
+          <a href={waLink(lead.telefone)} target="_blank" rel="noopener noreferrer" className="text-green-400 hover:underline" title="Abrir no WhatsApp">
+            {lead.telefone}
+          </a>
+        ) : null}
+        icon={<Phone className="w-4 h-4" />}
+      />
+      <DetailField
+        label="Email"
+        value={lead.email ? (
+          <a href={`mailto:${lead.email}`} className="hover:underline" title="Enviar e-mail">
+            {lead.email}
+          </a>
+        ) : null}
+        icon={<Mail className="w-4 h-4" />}
+      />
       <DetailField label="Pacote de Interesse" value={lead.pacoteInteresse} icon={null} />
       <DetailField label="Valor Potencial" value={lead.valorpotencial ? `R$ ${lead.valorpotencial.toLocaleString('pt-BR')}` : '-'} icon={null} />
-      <DetailField label="Última Interação" value={lead.ultimaInteracao ? new Date(lead.ultimaInteracao).toLocaleDateString('pt-BR') : '-'} icon={null} />
-      <DetailField label="Próximo Follow-up" value={lead.proximoFollowup ? new Date(lead.proximoFollowup).toLocaleDateString('pt-BR') : '-'} icon={null} />
+      <DetailField label="Última Interação" value={lead.ultimaInteracao ? formatDateBR(lead.ultimaInteracao) : '-'} icon={null} />
+      <DetailField label="Próximo Follow-up" value={lead.proximoFollowup ? formatDateBR(lead.proximoFollowup) : '-'} icon={null} />
       <DetailField label="Nº de Tentativas" value={lead.tentativas || 0} icon={null} />
-      <DetailField label="Data de Entrada" value={lead.dataentrada ? new Date(lead.dataentrada).toLocaleDateString('pt-BR') : '-'} icon={null} />
+      <DetailField label="Data de Entrada" value={lead.dataentrada ? formatDateBR(lead.dataentrada) : '-'} icon={null} />
       {lead.ficha_diagnostica && (
         <div className="md:col-span-2">
           <div className="p-4 rounded-lg" style={{ backgroundColor: '#1a1f26' }}>
