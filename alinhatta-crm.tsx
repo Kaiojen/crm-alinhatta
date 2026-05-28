@@ -344,6 +344,13 @@ const formatDateBR = (str) => {
   return isNaN(d.getTime()) ? '-' : d.toLocaleDateString('pt-BR');
 };
 
+// Normaliza segmento (1ª letra maiúscula, resto minúsculo) pra comparação consistente
+const normalizeSegmento = (seg) => {
+  if (!seg) return '';
+  const cleaned = String(seg).trim();
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1).toLowerCase();
+};
+
 // Link de WhatsApp a partir do telefone (assume DDI 55 se não houver)
 const waLink = (telefone) => {
   const digits = (telefone || '').replace(/\D/g, '');
@@ -1230,7 +1237,7 @@ const CRMAlinhatta = () => {
         (lead.cargo && lead.cargo.toLowerCase().includes(searchLower));
       const matchStatus = filterStatus === 'TODOS' || filterStatus.split(',').includes(lead.status);
       const matchPrioridade = filterPrioridade === 'TODOS' || lead.prioridade === filterPrioridade;
-      const matchSegmento = filterSegmento === 'TODOS' || lead.segmento === filterSegmento;
+      const matchSegmento = filterSegmento === 'TODOS' || normalizeSegmento(lead.segmento) === normalizeSegmento(filterSegmento);
       const matchOwner = filterOwner === 'TODOS' || lead.owner === filterOwner;
       const matchOrigem = filterOrigem === 'TODOS' || lead.origem === filterOrigem;
       const matchTag = filterTag === 'TODOS' || parseTags(lead.tags || '').includes(filterTag);
@@ -1277,14 +1284,6 @@ const CRMAlinhatta = () => {
   // Gerar lista de segmentos dinamicamente (combina iniciais + segmentos dos leads)
   // Normaliza para capitalização correta (primeira letra maiúscula, resto minúsculo)
   const getSegmentos = () => {
-    const normalizeSegmento = (seg) => {
-      if (!seg) return '';
-      // Converte para string, remove espaços extras
-      const cleaned = seg.trim();
-      // Primeira letra maiúscula, resto minúsculo
-      return cleaned.charAt(0).toUpperCase() + cleaned.slice(1).toLowerCase();
-    };
-
     const segmentosFromLeads = leads
       .map(l => normalizeSegmento(l.segmento))
       .filter(Boolean);
@@ -2657,7 +2656,7 @@ const DashboardView = ({ leads, metrics, segmentos, sdrs, onNavigateFiltered }) 
 
   const segmentoDistribution = segmentos.map(seg => ({
     label: seg,
-    ...calcConversao(leads.filter(l => l.segmento === seg))
+    ...calcConversao(leads.filter(l => normalizeSegmento(l.segmento) === normalizeSegmento(seg)))
   })).filter(s => s.total > 0).sort((a, b) => b.total - a.total);
 
   const ownerDistribution = sdrs.map(sdr => ({
