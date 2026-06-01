@@ -2,6 +2,10 @@
 
 Sistema completo de gestão de leads desenvolvido para a Alinhatta.
 
+> 📲 **Avisos no WhatsApp:** o CRM pode mandar, automaticamente, um alerta de
+> follow-ups (vencidos e de hoje) pela manhã e um relatório curto no fim do dia,
+> por SDR. Configuração em **[GUIA-WHATSAPP.md](GUIA-WHATSAPP.md)**.
+
 ## 🚀 Deploy no Vercel
 
 ### Passo a Passo do Deploy
